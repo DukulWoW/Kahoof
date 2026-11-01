@@ -1,0 +1,16 @@
+# Claude Code project context (local only)
+CLAUDE.md
+FILEMAP.md
+_docs/
+_work/
+.claude/settings.local.json
+
+# Reference files
+_reference/
+
+# Release archives (zips + release note files)
+_filearchive/
+*.zip
+
+# Compiled Lua
+luac.out

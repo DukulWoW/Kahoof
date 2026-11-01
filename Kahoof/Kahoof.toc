@@ -1,0 +1,8 @@
+## Interface: 120105, 120100, 16001
+## Title: Kahoof
+## IconTexture: Interface\TargetingFrame\UI-RaidTargetingIcon_1
+## Notes: Live quizzes for your party, raid or guild
+## Author: Dukul
+## Version: 0.1.0
+
+Init.lua
