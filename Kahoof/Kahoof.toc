@@ -1,8 +1,28 @@
 ## Interface: 120105, 120100, 16001
 ## Title: Kahoof
-## IconTexture: Interface\TargetingFrame\UI-RaidTargetingIcon_1
+## IconTexture: Interface\AddOns\Kahoof\Assets\logo-icon
 ## Notes: Live quizzes for your party, raid or guild
 ## Author: Dukul
 ## Version: 0.1.0
+## SavedVariables: KahoofDB, KahoofQuizzesDB
+## SavedVariablesPerCharacter: KahoofCharDB
 
+# Bootstrap
 Init.lua
+
+# Libraries
+libs\libs.xml
+
+# Locales
+Locales\enUS.lua
+
+# Core
+Core\Events.lua
+Core\Database.lua
+Core\SlashCommands.lua
+
+# UI
+UI\Widgets.lua
+UI\Theme.lua
+UI\MainWindow.lua
+UI\Launchers.lua

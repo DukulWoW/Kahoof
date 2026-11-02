@@ -1,0 +1,22 @@
+Kahoof - license
+
+Copyright (c) 2026 Dukul. All rights reserved.
+
+Kahoof (its source code, text and original artwork) is not open source. No
+permission is granted to copy, modify, redistribute, or use any part of it in
+another project, in whole or in part, without written permission from Dukul.
+You may download Kahoof from its official pages and use it to play World of
+Warcraft.
+
+Original artwork by Dukul, covered by the notice above:
+
+    Kahoof/Assets/logo.tga
+    Kahoof/Assets/logo-icon.tga
+    Kahoof/Assets/logo-minimap.tga
+
+The image files in Kahoof/Assets/Theme/ are game art from World of Warcraft,
+or are based on it, and belong to Blizzard Entertainment. They are not covered
+by the notice above.
+
+The libraries in Kahoof/libs/ belong to their own authors and are distributed
+under their own licenses (see Kahoof/libs/LICENSES.md).
