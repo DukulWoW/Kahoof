@@ -130,6 +130,7 @@ L["ED_COUNT"]            = "%d / %d characters"                                -
 L["ED_CORRECT"]          = "Correct answer"
 L["ED_CORRECT_TIP"]      = "Tick every answer that is correct. More than one may be."
 L["ED_CORRECT_HEAD"]     = "Correct"
+L["ED_ANSWERS_HEAD"]     = "Answers"
 L["ED_SHUFFLE"]          = "Randomize answers"
 L["ED_SHUFFLE_TIP"]      = "The answers come in a different order when the quiz runs. The host can still change it when starting."
 L["ED_MARKER_TIP"]       = "Click to tick or untick this answer as correct."

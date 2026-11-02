@@ -636,6 +636,11 @@ local function BuildQuestionPane()
     local head = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     head:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, Y_HEAD)
     head:SetText(L["ED_CORRECT_HEAD"])
+    -- ...and "Answers" over the answer boxes, so "Correct" is not alone
+    -- (Dukul, 2026-11-02: "seems to lonely")
+    local ansHead = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ansHead:SetPoint("TOPLEFT", p, "TOPLEFT", INDENT, Y_HEAD)
+    ansHead:SetText(L["ED_ANSWERS_HEAD"])
 
     W.qTime = CreateFrame("DropdownButton", nil, p, "WowStyle1DropdownTemplate")
     W.qTime:SetWidth(170)
