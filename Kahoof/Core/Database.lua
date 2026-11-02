@@ -1,7 +1,8 @@
 -- Kahoof Core/Database.lua: SavedVariables, defaults, schema versions
 --
 --   KahoofDB         account    settings, window positions
---   KahoofQuizzesDB  account    quizzes (by id), later history
+--   KahoofQuizzesDB  account    quizzes (by id); owned by the companion addon
+--                               Kahoof_DB, see InitQuizDB
 --   KahoofCharDB     character  rejoin record, host resume state (ALL-16 / ALL-17)
 --
 -- SCHEMA VERSIONS (data.md): each DB has a dbVersion, written with math.max so
@@ -77,11 +78,38 @@ local function InitDB(name, defaults, version, migrate)
     return db
 end
 
+-- KahoofQuizzesDB belongs to the companion addon Kahoof_DB (its own file, so
+-- nothing that happens to Kahoof's settings can take the quizzes along). It
+-- loads before Kahoof (OptionalDeps), so it is either loaded by now or absent.
+-- KHF.quizDBState:
+--   "ok"       loaded at a version this code knows: read and write
+--   "missing"  Kahoof_DB not loaded: an empty table in memory, never saved;
+--              every write is refused (QuizStore), a popup says why
+--   "newer"    saved by a newer Kahoof (dbVersion above QUIZZES_VERSION): read,
+--              never written, never migrated or defaulted, so an old build can
+--              not damage data it does not understand (data.md)
+local function InitQuizDB()
+    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Kahoof_DB")
+    if not loaded then
+        KHF.quizDBState = "missing"
+        KHF.quizDB = { dbVersion = QUIZZES_VERSION, quizzes = {} }
+        return
+    end
+    local db = KahoofQuizzesDB
+    if type(db) == "table" and type(db.dbVersion) == "number" and db.dbVersion > QUIZZES_VERSION then
+        KHF.quizDBState = "newer"
+        KHF.quizDB = db
+        return
+    end
+    KHF.quizDB = InitDB("KahoofQuizzesDB", QUIZZES_DEFAULTS, QUIZZES_VERSION, MigrateQuizzes)
+    KHF.quizDBState = "ok"
+end
+
 -- Called from Core/Events.lua at ADDON_LOADED
 function KHF.InitializeDB()
     KHF.db     = InitDB("KahoofDB", KHF.DEFAULTS, SETTINGS_VERSION, MigrateSettings)
-    KHF.quizDB = InitDB("KahoofQuizzesDB", QUIZZES_DEFAULTS, QUIZZES_VERSION, MigrateQuizzes)
     KHF.charDB = InitDB("KahoofCharDB", CHAR_DEFAULTS, CHAR_VERSION, MigrateChar)
+    InitQuizDB()
 end
 
 --------------------------------------------------------------------------------

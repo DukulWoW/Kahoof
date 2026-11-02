@@ -1,0 +1,12 @@
+-- Kahoof_DB: the companion addon that owns the KahoofQuizzesDB SavedVariable
+-- (BNB's BigNoteBoxDB pattern; Dukul, 2026-11-02).
+--
+-- WoW keeps each addon's SavedVariables in a file of its own. The quizzes live
+-- here, apart from Kahoof's settings, so a settings file that fails to load (and
+-- is written back empty), a settings reset or a change in Kahoof can never take
+-- the quizzes with it. This addon holds no code on purpose: it never needs an
+-- update, so its file is never touched by one.
+--
+-- Kahoof loads after it (OptionalDeps), checks C_AddOns.IsAddOnLoaded("Kahoof_DB")
+-- at its ADDON_LOADED and does all the work (Kahoof/Core/Database.lua). Without
+-- this addon Kahoof runs with no saved quizzes and says so.

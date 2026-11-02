@@ -4,8 +4,9 @@
 ## Notes: Live quizzes for your party, raid or guild
 ## Author: Dukul
 ## Version: 0.1.0
-## SavedVariables: KahoofDB, KahoofQuizzesDB
+## SavedVariables: KahoofDB
 ## SavedVariablesPerCharacter: KahoofCharDB
+## OptionalDeps: Kahoof_DB
 
 # Bootstrap
 Init.lua
@@ -18,11 +19,18 @@ Locales\enUS.lua
 
 # Core
 Core\Events.lua
+Core\Names.lua
 Core\Database.lua
 Core\SlashCommands.lua
+Core\QuizStore.lua
+Core\QuizText.lua
+
+# Data
+Data\StarterQuiz.lua
 
 # UI
 UI\Widgets.lua
 UI\Theme.lua
 UI\MainWindow.lua
+UI\QuizzesTab.lua
 UI\Launchers.lua

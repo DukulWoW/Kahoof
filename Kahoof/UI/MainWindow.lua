@@ -1,7 +1,8 @@
 -- Kahoof UI/MainWindow.lua: the main window
--- Tabs Play / My Quizzes / History / Settings, each an empty page for now (S1);
--- later sessions fill the pages in (architecture.md section 9). Resizable, its
--- place and size saved (KahoofDB.windows.main).
+-- Tabs Play / My Quizzes / History / Settings. My Quizzes is UI/QuizzesTab.lua
+-- (S3); the others are empty pages for now, filled in by later sessions
+-- (architecture.md section 9). Resizable, its place and size saved
+-- (KahoofDB.windows.main).
 --
 -- The logo (Assets/logo.tga, the whole name) sits centered on the title bar,
 -- its horns above the frame, as in Dukul's mockup; the tabs start top left
@@ -19,6 +20,11 @@ local LOGO = KHF.ADDON_PATH .. "Assets\\logo"
 local TABS = { "TAB_PLAY", "TAB_QUIZZES", "TAB_HISTORY", "TAB_SETTINGS" }
 
 local mw   -- the window, built on first open
+
+-- Page builders by tab key: a UI file that fills a tab sets
+-- KHF.PageBuilders[key] = function(page) (UI/QuizzesTab.lua: TAB_QUIZZES).
+-- A tab without one shows the placeholder line.
+KHF.PageBuilders = {}
 
 -- logo.tga is 256 x 128, its art on rows 23-107 (horn tips to letter feet).
 -- Drawn at 144 x 72 (Dukul's screenshot), its top 42 above the window: the
@@ -91,10 +97,15 @@ local function Build()
         local page = CreateFrame("Frame", nil, area)
         page:SetAllPoints()
         page:Hide()
-        local fs = page:CreateFontString(nil, "OVERLAY", "GameFontDisableLarge")
-        fs:SetPoint("CENTER")
-        fs:SetText(string.format(L["PAGE_PLACEHOLDER"], L[key]))
         mw._pages[i] = page
+        local build = KHF.PageBuilders[key]
+        if build then
+            build(page)
+        else
+            local fs = page:CreateFontString(nil, "OVERLAY", "GameFontDisableLarge")
+            fs:SetPoint("CENTER")
+            fs:SetText(string.format(L["PAGE_PLACEHOLDER"], L[key]))
+        end
     end
 
     LayoutHeader()

@@ -58,10 +58,10 @@ end)
 -- Sent now:
 --   SettingChanged (key, value)   Core/Database.lua KHF.SetSetting
 --   WindowsReset ()               Core/Database.lua KHF.ResetWindows (/kahoof reset)
+--   QuizzesChanged (id, what)     Core/QuizStore.lua, what = created | saved | deleted
 -- Planned (architecture.md section 4, not sent yet):
 --   SessionState (state), RosterChanged, LobbiesChanged, QuestionShown (q),
---   AnswerCount (n, total), Revealed (result), BoardUpdated, QuizEnded (reason),
---   QuizzesChanged
+--   AnswerCount (n, total), Revealed (result), BoardUpdated, QuizEnded (reason)
 --------------------------------------------------------------------------------
 KHF.callbacks = LibStub("CallbackHandler-1.0"):New(KHF,
     "RegisterMessage", "UnregisterMessage", "UnregisterAllMessages")
