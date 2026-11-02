@@ -117,6 +117,7 @@ L["ED_TIME_N"]           = "%d s"                                              -
 L["ED_COUNT"]            = "%d / %d characters"                                -- %d = typed, %d = limit
 L["ED_CORRECT"]          = "Correct answer"
 L["ED_CORRECT_TIP"]      = "Tick every answer that is correct. More than one may be."
+L["ED_MARKER_TIP"]       = "Click to tick or untick this answer as correct."
 L["ED_LEAVE_CONFIRM"]    = "Leave the editor? Your changes are not saved."
 L["ED_DISCARD"]          = "Discard"
 L["ED_KEEP_EDITING"]     = "Keep editing"

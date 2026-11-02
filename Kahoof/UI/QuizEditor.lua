@@ -527,8 +527,9 @@ local function BuildQuestionTools(p)
     W.qHead:SetWordWrap(false)
 end
 
--- One answer row: the marker (a label: Star, Circle...), the box, the
--- "correct" check box
+-- One answer row: the marker, the box, the "correct" check box. A click on
+-- the marker ticks or unticks the same row's check box (Dukul, 2026-11-02:
+-- "let clicking symbols mark them, just make it check the box on the right")
 local function BuildAnswer(p, s)
     local row = CreateFrame("Frame", nil, p)
     row:SetHeight(ROW_H)
@@ -536,18 +537,18 @@ local function BuildAnswer(p, s)
     row:SetPoint("TOPLEFT", p, "TOPLEFT", 0, y)
     row:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, y)
 
-    -- the marker: a plain icon, its name on hover
-    local m = CreateFrame("Frame", nil, row)
+    local m = CreateFrame("Button", nil, row)
     m:SetSize(24, 24)
     m:SetPoint("LEFT", row, "LEFT", 2, 0)
     m.tex = m:CreateTexture(nil, "ARTWORK")
     m.tex:SetAllPoints()
     m.tex:SetTexture(MARKER_TEX .. s)
+    m:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     m._slot = s
-    m:EnableMouse(true)
-    Tooltip(m, function(self) return L[MARKER_KEYS[self._slot]] end)
+    Tooltip(m, function(self) return L[MARKER_KEYS[self._slot]] end, L["ED_MARKER_TIP"])
 
     local check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+    m:SetScript("OnClick", function() check:Click() end)   -- the check box's own OnClick does the rest
     check:SetSize(26, 26)
     check:SetPoint("RIGHT", row, "RIGHT", 0, 0)
     check._slot = s
