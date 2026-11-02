@@ -15,6 +15,8 @@ L["CLIENT_FOREVER"]     = "WoW Forever"
 -- Shared
 L["CLOSE"]              = "Close"
 L["CANCEL"]             = "Cancel"
+L["RESET"]              = "Reset"
+L["SLIDER_DEFAULT"]     = "(Default: %s)"                                   -- %s = the default value
 
 -- Main window tabs
 L["TAB_PLAY"]           = "Play"
@@ -22,6 +24,13 @@ L["TAB_QUIZZES"]        = "My Quizzes"
 L["TAB_HISTORY"]        = "History"
 L["TAB_SETTINGS"]       = "Settings"
 L["PAGE_PLACEHOLDER"]   = "%s: nothing here yet."   -- %s = tab name
+
+-- The main window's lock button (UI/MainWindow.lua)
+L["MW_LOCKED"]          = "Window size is locked"
+L["MW_LOCKED_SUB"]      = "Click to allow resizing."
+L["MW_UNLOCKED"]        = "Window size is unlocked"
+L["MW_UNLOCKED_SUB"]    = "Click to lock it and hide the resize grip."
+L["MW_RESET_TIP"]       = "Right-click to put the window back in the middle at its default size."
 
 -- Slash commands
 L["SLASH_HELP_TITLE"]   = "Commands:"
@@ -46,11 +55,13 @@ L["FIELD_AUTHOR"]       = "The author"
 L["FIELD_QUESTION"]     = "The question"
 L["FIELD_ANSWER"]       = "An answer"
 L["FIELD_WHY"]          = "The explanation"
+L["FIELD_SHUFFLE"]      = "Shuffle:"
 
 -- Quiz checks (Core/QuizStore.lua)
 L["QZ_ERR_EMPTY"]        = "%s is empty."                                     -- %s = field
 L["QZ_ERR_TOO_LONG"]     = "%s is too long: %d characters, at most %d."       -- %s = field, %d = length, %d = limit
 L["QZ_ERR_BAD_TEXT"]     = "%s holds a character that cannot be shown (a line break or a broken character)."   -- %s = field
+L["QZ_ERR_FLAG"]         = "%s must be yes or no."                            -- %s = field
 L["QZ_ERR_TIME"]         = "The time limit must be 10, 20, 30, 45 or 60 seconds."
 L["QZ_ERR_ANSWER_COUNT"] = "A question needs 2 to 4 answers."
 L["QZ_ERR_CORRECT"]      = "A question needs at least one correct answer."
@@ -102,9 +113,10 @@ L["ED_SAVE"]             = "Save"
 L["ED_SAVED"]            = "Saved."
 L["ED_NOT_SAVED"]        = "Not saved: %s"                                     -- %s = the reason
 L["ED_ERR_Q"]            = "Question %d: %s"                                   -- %d = question number, %s = the problem
-L["ED_ERR_CORRECT_EMPTY"] = "An answer ticked as correct is empty."
 L["ED_QUESTION_N"]       = "Question %d of %d"                                 -- %d = number, %d = count
-L["ED_ADD_Q"]            = "Add question"
+L["ED_ADD_Q"]            = "Add"
+L["ED_ADD_TIP"]          = "A new, empty question after this one."
+L["ED_DUP_TIP"]          = "A copy of this question, right after it."
 L["ED_UP"]               = "Up"
 L["ED_DOWN"]             = "Down"
 L["ED_EMPTY_Q"]          = "(empty)"
@@ -117,6 +129,9 @@ L["ED_TIME_N"]           = "%d s"                                              -
 L["ED_COUNT"]            = "%d / %d characters"                                -- %d = typed, %d = limit
 L["ED_CORRECT"]          = "Correct answer"
 L["ED_CORRECT_TIP"]      = "Tick every answer that is correct. More than one may be."
+L["ED_CORRECT_HEAD"]     = "Correct"
+L["ED_SHUFFLE"]          = "Randomize answers"
+L["ED_SHUFFLE_TIP"]      = "The answers come in a different order when the quiz runs. The host can still change it when starting."
 L["ED_MARKER_TIP"]       = "Click to tick or untick this answer as correct."
 L["ED_LEAVE_CONFIRM"]    = "Leave the editor? Your changes are not saved."
 L["ED_DISCARD"]          = "Discard"

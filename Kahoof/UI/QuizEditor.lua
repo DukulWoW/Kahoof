@@ -41,7 +41,7 @@ local BOX_BACKDROP = {
     insets = { left = 3, right = 3, top = 3, bottom = 3 },
 }
 
--- Layout (UI units). MainWindow's MIN_H (500) is set so the right pane fits.
+-- Layout (UI units). MainWindow's MIN_H (516) is set so the right pane fits.
 local LIST_W, ITEM_H, BAR_W = 180, 22, 22
 local MID_Y    = -70   -- top of the list and the question pane
 local BOTTOM_H = 40    -- the bottom bar
@@ -51,9 +51,10 @@ local ROW1_Y, ROW2_Y = -20, -50   -- header rows, by their middle
 -- The question pane, top of each part from the pane's top. Top-to-top
 -- anchors only, so no box gets a second, clashing vertical anchor.
 local Y_Q, Q_H     = -28, 64
-local Y_A          = -100
-local Y_TIME       = -220
-local Y_WHY, WHY_H = -254, 50   -- bottom -304: MainWindow MIN_H 500 leaves it room
+local Y_HEAD       = -96    -- the "Correct" header over the check boxes (ALL-41)
+local Y_A          = -116
+local Y_TIME       = -236
+local Y_WHY, WHY_H = -270, 50   -- bottom -320: MainWindow MIN_H 516 leaves it room
 
 -- The limits come from the one field list (data.md)
 local LIMIT = {}
@@ -116,6 +117,7 @@ local function RefreshList()
     end
     W.listChild:SetHeight(math.max(1, #qs * ITEM_H))
     W.add:SetEnabled(#qs < QuizStore.MAX_QUESTIONS)
+    W.dup:SetEnabled(#qs < QuizStore.MAX_QUESTIONS)
 end
 
 -- The shown question inside the list's view (next frame: the scroll range
@@ -130,10 +132,18 @@ local function ScrollToSel()
     end)
 end
 
+-- Save is live only while the draft differs from the copy last opened or
+-- saved (ALL-36; Dukul: "Save button should be inactive if there are no
+-- changes registered")
+local function UpdateSave()
+    W.save:SetEnabled(draft ~= nil and saved ~= nil and not QuizDraft.Same(draft, saved))
+end
+
 -- Every change to the draft: the list follows, an old message goes
 local function Changed()
     RefreshList()
     SetStatus(nil)
+    UpdateSave()
 end
 
 --------------------------------------------------------------------------------
@@ -175,11 +185,13 @@ local function ShowDraft()
     W.tag:SetText(draft.tag)
     W.about:SetText(draft.about)
     loading = false
+    W.shuffle:SetChecked(draft.shuffle == true)
     W.time:GenerateMenu()
     sel = math.min(math.max(sel, 1), #draft.questions)
     ShowQuestion()
     ScrollToSel()
     SetStatus(nil)
+    UpdateSave()
 end
 
 --------------------------------------------------------------------------------
@@ -427,9 +439,25 @@ local function BuildHeader()
     W.title:SetPoint("LEFT", titleLabel, "RIGHT", 12, 0)
     W.title:SetPoint("RIGHT", tagLabel, "LEFT", -16, 0)
 
+    -- "Randomize answers", saved with the quiz: the start options begin with it
+    -- (ALL-40). Its label is part of the click area (BNB's checkbox rule).
+    local shuffleLabel = ed:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    shuffleLabel:SetText(L["ED_SHUFFLE"])
+    shuffleLabel:SetPoint("RIGHT", ed, "TOPRIGHT", -10, ROW2_Y)
+    W.shuffle = CreateFrame("CheckButton", nil, ed, "UICheckButtonTemplate")
+    W.shuffle:SetSize(26, 26)
+    W.shuffle:SetPoint("RIGHT", shuffleLabel, "LEFT", -2, 0)
+    W.shuffle:SetHitRectInsets(0, -(shuffleLabel:GetStringWidth() + 4), 0, 0)
+    W.shuffle:SetScript("OnClick", function(self)
+        if not draft then return end
+        draft.shuffle = self:GetChecked() and true or false
+        Changed()
+    end)
+    Tooltip(W.shuffle, L["ED_SHUFFLE"], L["ED_SHUFFLE_TIP"])
+
     W.about = InputBox(ed)
     W.about:SetPoint("LEFT", W.title, "LEFT", 0, ROW2_Y - ROW1_Y)
-    W.about:SetPoint("RIGHT", ed, "TOPRIGHT", -10, ROW2_Y)
+    W.about:SetPoint("RIGHT", W.shuffle, "LEFT", -12, 0)
     local aboutLabel = Label(L["ED_ABOUT"])
     aboutLabel:SetPoint("RIGHT", W.about, "LEFT", -12, 0)
 
@@ -439,15 +467,19 @@ local function BuildHeader()
     SetupBox(W.about, LIMIT.about, nil, nil, Field("about"))
 end
 
--- Left: the questions and Add question
+-- Left: the questions, Add and Duplicate. The list has the page's own look
+-- (no darker shade) with the glow stretched over it (Dukul, 2026-11-02: "the
+-- same background as right side, and the same glow (stretching)").
 local function BuildList()
     local pane = CreateFrame("Frame", nil, ed)
     pane:SetPoint("TOPLEFT", ed, "TOPLEFT", 10, MID_Y)
     pane:SetPoint("BOTTOMLEFT", ed, "BOTTOMLEFT", 10, BOTTOM_H)
     pane:SetWidth(LIST_W)
+    KHF.Theme.AddGlow(pane)
     W.listPane = pane
 
-    W.add = KHF.CreateButton(pane, L["ED_ADD_Q"], LIST_W, 24)
+    local half = math.floor((LIST_W - 6) / 2)
+    W.add = KHF.CreateButton(pane, L["ED_ADD_Q"], half, 24)
     W.add:SetPoint("BOTTOMLEFT", pane, "BOTTOMLEFT", 0, 0)
     W.add:SetScript("OnClick", function()
         if not draft then return end
@@ -457,16 +489,27 @@ local function BuildList()
         Select(i)
         W.qText:SetFocus()
     end)
+    Tooltip(W.add, L["ED_ADD_Q"], L["ED_ADD_TIP"])
+    -- Duplicate the shown question, the copy right after it (ALL-37)
+    W.dup = KHF.CreateButton(pane, L["QUIZ_DUPLICATE"], half, 24)
+    W.dup:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT", 0, 0)
+    W.dup:SetScript("OnClick", function()
+        if not draft then return end
+        local i = QuizDraft.DuplicateQuestion(draft, sel)
+        if not i then return end
+        Changed()
+        Select(i)
+    end)
+    Tooltip(W.dup, L["QUIZ_DUPLICATE"], L["ED_DUP_TIP"])
 
-    local sf = CreateFrame("ScrollFrame", nil, pane, "ScrollFrameTemplate")
+    -- a plain ScrollFrame with the bronze Forever bar (UI/ThemeControls.lua)
+    local sf = CreateFrame("ScrollFrame", nil, pane)
     sf:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, 0)
-    sf:SetPoint("BOTTOMRIGHT", W.add, "TOPRIGHT", -BAR_W, 8)
-    local bg = sf:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0, 0, 0, 0.3)
+    sf:SetPoint("BOTTOMRIGHT", W.dup, "TOPRIGHT", -BAR_W, 8)
     local child = CreateFrame("Frame", nil, sf)
     child:SetSize(1, 1)
     sf:SetScrollChild(child)
+    KHF.Theme.AttachScrollBar(sf)
     sf:HookScript("OnSizeChanged", function(self, w) child:SetWidth(w or self:GetWidth()) end)
     W.listScroll, W.listChild = sf, child
 
@@ -491,6 +534,15 @@ local function BuildList()
         b.text:SetJustifyH("LEFT")
         b.text:SetWordWrap(false)
         b:SetScript("OnClick", function(self) if self._index then Select(self._index) end end)
+        -- the whole question on hover (ALL-34): the row cuts it short
+        b:SetScript("OnEnter", function(self)
+            local q = draft and self._index and draft.questions[self._index]
+            if not q or not QuizDraft.Filled(q.text) then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(KHF.EscapeText(QuizStore.Trim(q.text)), 1, 1, 1, 1, true)
+            GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", GameTooltip_Hide)
         b:Hide()
         items[i] = b
     end
@@ -580,6 +632,10 @@ local function BuildQuestionPane()
 
     W.answers = {}
     for s = 1, SLOTS do W.answers[s] = BuildAnswer(p, s) end
+    -- Dukul, H1: "The answer columns should get some header"
+    local head = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    head:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, Y_HEAD)
+    head:SetText(L["ED_CORRECT_HEAD"])
 
     W.qTime = CreateFrame("DropdownButton", nil, p, "WowStyle1DropdownTemplate")
     W.qTime:SetWidth(170)

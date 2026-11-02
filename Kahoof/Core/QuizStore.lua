@@ -58,6 +58,7 @@ local QUIZ_FIELDS = {
     { key = "created",   kind = "stamp" },
     { key = "modified",  kind = "stamp" },
     { key = "time",      kind = "time", default = QuizStore.DEFAULT_TIME },
+    { key = "shuffle",   kind = "flag", label = "FIELD_SHUFFLE" },   -- "Randomize answers" (ALL-40)
     { key = "questions", kind = "questions" },
 }
 local QUESTION_FIELDS = {
@@ -224,6 +225,12 @@ function QuizStore.Clean(raw)
                 end
                 quiz.id = v
             end
+        elseif f.kind == "flag" then
+            -- true or left out; quiz text's "yes" / "no" arrive as booleans
+            if v ~= nil and v ~= false and v ~= true then
+                return Fail(string.format(L["QZ_ERR_FLAG"], L[f.label]), path)
+            end
+            quiz[f.key] = (v == true) or nil
         elseif f.kind == "stamp" then
             if v ~= nil then
                 if type(v) ~= "number" or v < 0 then return Fail(L["QZ_ERR_DAMAGED"], path) end

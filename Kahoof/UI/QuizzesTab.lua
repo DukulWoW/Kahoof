@@ -187,10 +187,12 @@ local function Build(p)
     status:SetPoint("TOPRIGHT", list, "TOPRIGHT", -10, -44)
     status:SetJustifyH("LEFT")
 
-    scroll = CreateFrame("ScrollFrame", nil, list, "ScrollFrameTemplate")
+    -- a plain ScrollFrame with the bronze Forever bar (UI/ThemeControls.lua, ALL-38)
+    scroll = CreateFrame("ScrollFrame", nil, list)
     child = CreateFrame("Frame", nil, scroll)
     child:SetSize(1, 1)
     scroll:SetScrollChild(child)
+    KHF.Theme.AttachScrollBar(scroll)
     scroll:HookScript("OnSizeChanged", function(self, w) child:SetWidth(w or self:GetWidth()) end)
 
     empty = child:CreateFontString(nil, "OVERLAY", "GameFontDisable")

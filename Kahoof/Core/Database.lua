@@ -24,6 +24,7 @@ KHF.DEFAULTS = {
     windows = {
         main = {},
     },
+    mainLocked = false,   -- the main window's size locked (the lock button, ALL-39)
     mainTab = 1,   -- the main window's last tab (1 Play, 2 My Quizzes, 3 History, 4 Settings)
     readTime = 5,         -- the read time a quiz starts with: 0 none, -1 the host starts it, 2-10 s (data.md)
     autoAdvance = false,  -- Next by itself after the reveal / leaderboard (data.md)

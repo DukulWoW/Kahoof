@@ -17,13 +17,14 @@ KHF.Practice = Practice
 
 -- Start options a practice run gets when the caller leaves them out: the
 -- Settings defaults (data.md)
-local function Defaults(opts)
+local function Defaults(opts, quiz)
     opts = opts or {}
     local o = {}
     o.read = opts.read
     if o.read == nil then o.read = KHF.GetSetting("readTime") end
     o.board = opts.board or 1
-    o.shuffle = opts.shuffle and true or false
+    -- the quiz's own "Randomize answers" (ALL-40) unless the caller says
+    if opts.shuffle == nil then o.shuffle = quiz.shuffle == true else o.shuffle = opts.shuffle and true or false end
     o.pick = (opts.pick == "one") and "one" or "all"   -- several correct answers (ALL-33)
     if opts.auto == nil then o.auto = KHF.GetSetting("autoAdvance") and true or false else o.auto = opts.auto end
     return o
@@ -43,7 +44,7 @@ function Practice.Start(quizId, opts)
     local me = KHF.UnitKey("player")
     local id = KHF.Protocol.NewSessionId()
     KHF.Player.Expect(id, me, true)
-    local s, msg = KHF.Host.Start(quiz, Defaults(opts), { me }, { id = id, loopback = true })
+    local s, msg = KHF.Host.Start(quiz, Defaults(opts, quiz), { me }, { id = id, loopback = true })
     if not s then
         KHF.Player.Leave()
         return nil, msg

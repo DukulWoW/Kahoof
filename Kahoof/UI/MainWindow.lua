@@ -14,7 +14,7 @@ local _, KHF = ...
 local L = KHF.L
 
 local DEF_W, DEF_H = 720, 540
-local MIN_W, MIN_H = 560, 500   -- 500: the quiz editor's question pane fits (S4)
+local MIN_W, MIN_H = 560, 516   -- 516: the quiz editor's question pane fits (S4, ALL-41)
 local LOGO = KHF.ADDON_PATH .. "Assets\\logo"
 
 local TABS = { "TAB_PLAY", "TAB_QUIZZES", "TAB_HISTORY", "TAB_SETTINGS" }
@@ -54,6 +54,46 @@ local function SelectTab(idx)
     KHF.SetSetting("mainTab", idx)
 end
 
+--------------------------------------------------------------------------------
+-- LOCK / RESET (BNB's main window, ALL-39; Dukul, 2026-11-02: "left clicking
+-- locks the window resizing, and right clicking resets the window to it's
+-- center position"). Left of the red X. Locked = no resize grip, not
+-- resizable (it still moves). Right click = the default size, centered.
+--------------------------------------------------------------------------------
+local function ApplyLock()
+    if not mw then return end
+    local locked = KHF.GetSetting("mainLocked") and true or false
+    mw:SetResizable(not locked)
+    if mw._grip then mw._grip:SetShown(not locked) end
+    if mw._lockBtn then mw._lockBtn:SetSymbol(locked and "lock" or "unlock") end
+end
+
+local function LockTip()
+    local reset = L["MW_RESET_TIP"]
+    if KHF.GetSetting("mainLocked") then return L["MW_LOCKED"], L["MW_LOCKED_SUB"], reset end
+    return L["MW_UNLOCKED"], L["MW_UNLOCKED_SUB"], reset
+end
+
+local function BuildLock()
+    local close = mw.CloseButton
+    local size = math.floor(close:GetHeight() - 2 + 0.5)
+    local b = KHF.Theme.CreateIconButton(mw, size, "unlock", LockTip)
+    b:SetPoint("RIGHT", close, "LEFT", -4, 0)
+    b:SetFrameLevel(close:GetFrameLevel())
+    b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    b:SetScript("OnClick", function(self, btn)
+        if btn == "RightButton" then
+            KHF.db.windows.main = {}
+            KHF.RestoreWindowPos(mw)
+        else
+            KHF.SetSetting("mainLocked", not KHF.GetSetting("mainLocked"))
+            ApplyLock()
+            self:RefreshTip()
+        end
+    end)
+    mw._lockBtn = b
+end
+
 local function LayoutHeader()
     local pad = KHF.Theme.PAD
     local tab1 = mw._tabs[1]
@@ -71,6 +111,9 @@ local function Build()
         resizable = true, posKey = "main",
         onEsc = PageEsc,
     })
+    -- 95 % solid, like BNB's main window (Dukul, 2026-11-02: "the same
+    -- transparency to the window like we have in BNB")
+    mw:SetAlpha(0.95)
 
     -- The logo over the frame art (its own frame, one level up; no mouse, so
     -- the title bar under it still drags the window)
@@ -121,6 +164,8 @@ local function Build()
     end
 
     LayoutHeader()
+    BuildLock()
+    ApplyLock()
     local idx = KHF.GetSetting("mainTab")
     if type(idx) ~= "number" or not TABS[idx] then idx = 1 end
     SelectTab(idx)

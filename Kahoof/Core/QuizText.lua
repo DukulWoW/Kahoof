@@ -1,7 +1,7 @@
 -- Kahoof Core/QuizText.lua: the readable quiz text, parsed and written
 -- Format: _docs/features/quiz-text-format.md. Line by line with plain string
 -- functions, never loadstring (data.md). The keywords (Quiz: About: Tag: Time:
--- Q: Why:) are a file format: English on every client, never localized; the
+-- Shuffle: Q: Why:) are a file format: English on every client, never localized; the
 -- error lines are localized like every other string.
 --
 --   QuizText.Parse(text) -> quiz | nil, { "Line 14: ...", ... }
@@ -21,15 +21,25 @@ local MAX_ERRORS = 10
 
 -- Keywords, lower case (matched case-insensitively). HEADER = before the first
 -- Q:, QUESTION = after one. Time: is both: the quiz default, or one question's.
-local HEADER   = { quiz = "title", about = "about", tag = "tag", time = "time" }
+local HEADER   = { quiz = "title", about = "about", tag = "tag", time = "time", shuffle = "shuffle" }
 local QUESTION = { time = "time", why = "why" }
 -- The keyword as it is written, for error lines
-local SPELLING = { quiz = "Quiz:", about = "About:", tag = "Tag:", time = "Time:", why = "Why:", q = "Q:" }
+local SPELLING = { quiz = "Quiz:", about = "About:", tag = "Tag:", time = "Time:", why = "Why:", q = "Q:",
+                   shuffle = "Shuffle:" }
 
 -- "Time: 20" and "Time: 20s" both mean 20; anything else is left as text so
 -- Clean refuses it with its own line
 local function ReadTime(v)
     return tonumber(v:match("^(%d+)%s*[sS]?$") or "") or v
+end
+
+-- "Shuffle: yes" / "no" (also on / off, true / false); anything else is left
+-- as text so Clean refuses it with its own line
+local YES = { yes = true, on = true, ["true"] = true, no = false, off = false, ["false"] = false }
+local function ReadFlag(v)
+    local b = YES[v:lower()]
+    if b == nil then return v end
+    return b
 end
 
 function QuizText.Parse(text)
@@ -105,7 +115,13 @@ function QuizText.Parse(text)
                 if where[field] then
                     Err(n, string.format(L["QT_ERR_TWICE"], SPELLING[key]))
                 else
-                    quiz[field] = (field == "time") and ReadTime(value) or value
+                    if field == "time" then
+                        quiz[field] = ReadTime(value)
+                    elseif field == "shuffle" then
+                        quiz[field] = ReadFlag(value)
+                    else
+                        quiz[field] = value
+                    end
                     where[field] = n
                 end
             elseif not q and key == "why" then
@@ -144,6 +160,7 @@ function QuizText.Write(quiz)
     if quiz.about then add("About: " .. quiz.about) end
     if quiz.tag then add("Tag: " .. quiz.tag) end
     add("Time: " .. (quiz.time or KHF.QuizStore.DEFAULT_TIME))
+    if quiz.shuffle then add("Shuffle: yes") end
     for _, q in ipairs(quiz.questions or {}) do
         add("")
         add("Q: " .. q.text)

@@ -39,6 +39,7 @@ Data\StarterQuiz.lua
 # UI
 UI\Widgets.lua
 UI\Theme.lua
+UI\ThemeControls.lua
 UI\MainWindow.lua
 UI\QuizEditor.lua
 UI\QuizzesTab.lua
