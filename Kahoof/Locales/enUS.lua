@@ -120,6 +120,10 @@ L["ED_LEAVE_CONFIRM"]    = "Leave the editor? Your changes are not saved."
 L["ED_DISCARD"]          = "Discard"
 L["ED_KEEP_EDITING"]     = "Keep editing"
 
+-- The quiz engine (Core/Host.lua, Core/Practice.lua)
+L["ENG_ERR_RUNNING"]     = "A quiz is already running. Leave it first."
+L["ENG_ERR_PLAYERS"]     = "A quiz needs 1 to 40 players."
+
 -- The answer markers (raid target icons), in answer order
 L["MARKER_1"]            = "Star"
 L["MARKER_2"]            = "Circle"

@@ -25,6 +25,13 @@ Core\SlashCommands.lua
 Core\QuizStore.lua
 Core\QuizText.lua
 Core\QuizDraft.lua
+Core\Scoring.lua
+Core\Protocol.lua
+Core\Comms.lua
+Core\Session.lua
+Core\Host.lua
+Core\Player.lua
+Core\Practice.lua
 
 # Data
 Data\StarterQuiz.lua

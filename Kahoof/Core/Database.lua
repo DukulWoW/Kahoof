@@ -25,6 +25,8 @@ KHF.DEFAULTS = {
         main = {},
     },
     mainTab = 1,   -- the main window's last tab (1 Play, 2 My Quizzes, 3 History, 4 Settings)
+    readTime = 5,         -- the read time a quiz starts with: 0 none, -1 the host starts it, 2-10 s (data.md)
+    autoAdvance = false,  -- Next by itself after the reveal / leaderboard (data.md)
     newQuizTime = 20,   -- the time limit a new quiz starts with (10 / 20 / 30 / 45 / 60 s; data.md)
 }
 

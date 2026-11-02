@@ -59,9 +59,15 @@ end)
 --   SettingChanged (key, value)   Core/Database.lua KHF.SetSetting
 --   WindowsReset ()               Core/Database.lua KHF.ResetWindows (/kahoof reset)
 --   QuizzesChanged (id, what)     Core/QuizStore.lua, what = created | saved | deleted
--- Planned (architecture.md section 4, not sent yet):
---   SessionState (state), RosterChanged, LobbiesChanged, QuestionShown (q),
---   AnswerCount (n, total), Revealed (result), BoardUpdated, QuizEnded (reason)
+-- The quiz engine (S5a); s = the session table, s.role = "host" | "player",
+-- so one listener can tell the host's screens from the player's:
+--   SessionState (s, state, old)  Core/Session.lua SetState
+--   QuestionShown (s, q)          Core/Host.lua, Core/Player.lua: GO, the question shows
+--   AnswerCount (s, n, total)     Host: each answer; Player: each IN
+--   Revealed (s, reveal)          the correct answer, counts, why, your pick
+--   BoardUpdated (s, board)       points, ranks, climber (every question)
+--   QuizEnded (s, reason)         "final", or a CANCEL reason ("stopped", ...)
+-- Planned (architecture.md section 4, not sent yet): RosterChanged, LobbiesChanged
 --------------------------------------------------------------------------------
 KHF.callbacks = LibStub("CallbackHandler-1.0"):New(KHF,
     "RegisterMessage", "UnregisterMessage", "UnregisterAllMessages")
