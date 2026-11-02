@@ -1,0 +1,6 @@
+# Every text file is LF in the working copy and in git (CLAUDE.md, Code Style),
+# whatever core.autocrlf says on this machine.
+* text=auto eol=lf
+*.tga binary
+*.png binary
+*.blp binary
