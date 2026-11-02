@@ -69,7 +69,7 @@ local function InitDB(name, defaults, version, migrate)
     local db = _G[name]
     if type(db) ~= "table" then
         db = { dbVersion = version }
-        _G[name] = db
+        _G[name] = db   -- luacheck: ignore 122 (the SavedVariable, named in the TOC)
     end
     migrate(db)
     ApplyDefaults(db, defaults)
