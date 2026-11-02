@@ -6,12 +6,13 @@
 -- cover it (_work/tools/tests/test_quizdraft.lua).
 --
 -- A draft holds what the boxes hold, as typed: text fields are strings ("" =
--- empty), every question has MAX_ANSWERS answer slots, correct = the slot
--- picked (nil = none), time nil = the quiz's time.
+-- empty), every question has MAX_ANSWERS answer slots, correct = the set of
+-- slots ticked as correct ({ [slot] = true }, several allowed: ALL-33), time
+-- nil = the quiz's time.
 --
 -- Saving: Check turns the draft into a raw quiz. Questions with nothing typed
 -- in them are left out, and empty answer slots close up (a gap at answer 2
--- moves 3 and 4 up, the correct mark moving with its answer). An error comes
+-- moves 3 and 4 up, the correct ticks moving with their answers). An error comes
 -- back with a path in DRAFT terms (the question and slot on screen), not in
 -- the cleaned quiz's numbering.
 --
@@ -49,7 +50,7 @@ QuizDraft.Filled = Filled
 local function BlankQuestion()
     local answers = {}
     for s = 1, SLOTS do answers[s] = "" end
-    return { text = "", answers = answers, correct = nil, time = nil, why = "" }
+    return { text = "", answers = answers, correct = {}, time = nil, why = "" }
 end
 
 function QuizDraft.New(time)
@@ -68,7 +69,10 @@ function QuizDraft.FromQuiz(quiz)
     for i, q in ipairs(quiz.questions or {}) do
         local answers = {}
         for s = 1, SLOTS do answers[s] = (q.answers and q.answers[s]) or "" end
-        d.questions[i] = { text = q.text or "", answers = answers, correct = q.correct,
+        local correct = {}
+        local list = type(q.correct) == "table" and q.correct or { q.correct }
+        for _, s in ipairs(list) do correct[s] = true end
+        d.questions[i] = { text = q.text or "", answers = answers, correct = correct,
                            time = q.time, why = q.why or "" }
     end
     if #d.questions == 0 then d.questions[1] = BlankQuestion() end
@@ -111,15 +115,27 @@ function QuizDraft.IsBlank(q)
     return true
 end
 
--- Ready to play: text, two answers and a correct one that is filled in.
--- (Lengths are capped by the boxes; Check has the last word.)
+-- Ready to play: text, two answers, at least one ticked correct, and no tick
+-- on an empty answer. (Lengths are capped by the boxes; Check has the last word.)
 function QuizDraft.IsComplete(q)
     if not Filled(q.text) then return false end
-    local n = 0
+    local n, ticks = 0, 0
     for s = 1, SLOTS do
-        if Filled(q.answers[s]) then n = n + 1 end
+        local filled = Filled(q.answers[s])
+        if filled then n = n + 1 end
+        if q.correct[s] then
+            if not filled then return false end
+            ticks = ticks + 1
+        end
     end
-    return n >= QuizStore.MIN_ANSWERS and q.correct ~= nil and Filled(q.answers[q.correct])
+    return n >= QuizStore.MIN_ANSWERS and ticks > 0
+end
+
+-- The first slot ticked correct but left empty, or nil
+local function EmptyTick(q)
+    for s = 1, SLOTS do
+        if q.correct[s] and not Filled(q.answers[s]) then return s end
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -154,15 +170,20 @@ function QuizDraft.Check(d)
                   questions = {} }
     -- qMap[raw question] = draft question; aMap[raw question][raw answer] = slot
     local qMap, aMap = {}, {}
+    local tickQ, tickSlot   -- the first question with a tick on an empty answer
     for i, q in ipairs(d.questions) do
         if not QuizDraft.IsBlank(q) then
-            local answers, slots, correct = {}, {}, nil
+            local answers, slots, correct = {}, {}, {}
             for s = 1, SLOTS do
                 if Filled(q.answers[s]) then
                     answers[#answers + 1] = q.answers[s]
                     slots[#answers] = s
-                    if q.correct == s then correct = #answers end
+                    if q.correct[s] then correct[#correct + 1] = #answers end
                 end
+            end
+            if not tickQ then
+                tickSlot = EmptyTick(q)
+                if tickSlot then tickQ = i end
             end
             local n = #raw.questions + 1
             raw.questions[n] = { text = q.text, answers = answers, correct = correct,
@@ -172,10 +193,24 @@ function QuizDraft.Check(d)
     end
 
     local quiz, msg, path = QuizStore.Clean(raw)
-    if quiz then return raw end
+    -- A tick on an empty answer would vanish when the answers close up: it
+    -- is a problem of its own, reported in question order with Clean's
+    local function TickProblem()
+        return nil, L["ED_ERR_CORRECT_EMPTY"], { q = tickQ, a = tickSlot, field = "correct" }
+    end
+    if quiz then
+        if tickQ then return TickProblem() end
+        return raw
+    end
 
     -- The path back in draft terms
     path = path or {}
+    -- Clean's problem is later than the tick's, or it is that same question
+    -- having no correct answer left (its only tick was on an empty answer)
+    if tickQ and path.q then
+        local at = qMap[path.q] or math.huge
+        if at > tickQ or (at == tickQ and path.field == "correct") then return TickProblem() end
+    end
     local out = { field = path.field }
     if path.q then
         local qi = qMap[path.q]
@@ -186,9 +221,6 @@ function QuizDraft.Check(d)
                 out.a = aMap[path.q][path.a]
             elseif path.field == "answers" then
                 out.a = FirstEmptySlot(dq)
-            elseif path.field == "correct" and dq.correct and not Filled(dq.answers[dq.correct]) then
-                -- a marker on an empty answer: say so, not "needs one correct answer"
-                msg, out.a = L["ED_ERR_CORRECT_EMPTY"], dq.correct
             end
         end
     end

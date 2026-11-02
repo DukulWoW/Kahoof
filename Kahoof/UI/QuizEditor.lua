@@ -7,7 +7,8 @@
 --   top      back arrow, Title, Tag, Time (the quiz's), About
 --   left     the questions (red = not finished, gray = empty), Add question
 --   right    Question N of M, Up / Down / Delete, the question, four answers by
---            raid marker (click a marker = the correct answer), Time, Why
+--            raid marker, a "correct" check box right of each (several may be
+--            ticked: ALL-33, Dukul 2026-11-02), Time, Why
 --   bottom   status line (author, Saved., or the problem), count, Cancel, Save
 --
 -- The boxes edit a draft (Core/QuizDraft.lua), never the stored quiz. Save
@@ -33,7 +34,6 @@ KHF.QuizEditor = Editor
 local SLOTS = QuizStore.MAX_ANSWERS
 local MARKER_TEX = "Interface\\TargetingFrame\\UI-RaidTargetingIcon_"
 local MARKER_KEYS = { "MARKER_1", "MARKER_2", "MARKER_3", "MARKER_4" }   -- Star, Circle, Diamond, Triangle
-local CHECK_TEX  ="Interface\\RaidFrame\\ReadyCheck-Ready"
 local BACK_TEX   = "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-"
 local BOX_BACKDROP = {
     bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -139,13 +139,10 @@ end
 --------------------------------------------------------------------------------
 -- THE SHOWN QUESTION
 --------------------------------------------------------------------------------
-local function ShowMarkers()
+local function ShowTicks()
     local q = Q()
     for s, a in ipairs(W.answers) do
-        local on = q and q.correct == s
-        a.marker.tex:SetDesaturated(not on)
-        a.marker.tex:SetAlpha(on and 1 or 0.45)
-        if on then a.check:Show() else a.check:Hide() end
+        a.check:SetChecked(q ~= nil and q.correct[s] == true)
     end
 end
 
@@ -160,7 +157,7 @@ local function ShowQuestion()
     W.qHead:SetText(string.format(L["ED_QUESTION_N"], sel, #draft.questions))
     W.qUp:SetEnabled(sel > 1)
     W.qDown:SetEnabled(sel < #draft.questions)
-    ShowMarkers()
+    ShowTicks()
     W.qTime:GenerateMenu()
     RefreshList()
 end
@@ -530,7 +527,8 @@ local function BuildQuestionTools(p)
     W.qHead:SetWordWrap(false)
 end
 
--- One answer row: the marker (click = correct), the box, the check
+-- One answer row: the marker (a label: Star, Circle...), the box, the
+-- "correct" check box
 local function BuildAnswer(p, s)
     local row = CreateFrame("Frame", nil, p)
     row:SetHeight(ROW_H)
@@ -538,31 +536,32 @@ local function BuildAnswer(p, s)
     row:SetPoint("TOPLEFT", p, "TOPLEFT", 0, y)
     row:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, y)
 
-    local m = CreateFrame("Button", nil, row)
+    -- the marker: a plain icon, its name on hover
+    local m = CreateFrame("Frame", nil, row)
     m:SetSize(24, 24)
     m:SetPoint("LEFT", row, "LEFT", 2, 0)
     m.tex = m:CreateTexture(nil, "ARTWORK")
     m.tex:SetAllPoints()
     m.tex:SetTexture(MARKER_TEX .. s)
-    m:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     m._slot = s
-    m:SetScript("OnClick", function(self)
-        local q = Q()
-        if not q or q.correct == self._slot then return end
-        q.correct = self._slot
-        Changed()
-        ShowMarkers()
-    end)
-    Tooltip(m, function(self) return L[MARKER_KEYS[self._slot]] end, L["ED_MARKER_TIP"])
+    m:EnableMouse(true)
+    Tooltip(m, function(self) return L[MARKER_KEYS[self._slot]] end)
 
-    local check = row:CreateTexture(nil, "OVERLAY")
-    check:SetSize(18, 18)
-    check:SetPoint("RIGHT", row, "RIGHT", -2, 0)
-    check:SetTexture(CHECK_TEX)
+    local check = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
+    check:SetSize(26, 26)
+    check:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+    check._slot = s
+    check:SetScript("OnClick", function(self)
+        local q = Q()
+        if not q then return end
+        q.correct[self._slot] = self:GetChecked() and true or nil
+        Changed()
+    end)
+    Tooltip(check, L["ED_CORRECT"], L["ED_CORRECT_TIP"])
 
     local eb = InputBox(row)
     eb:SetPoint("LEFT", row, "LEFT", INDENT, 0)
-    eb:SetPoint("RIGHT", check, "LEFT", -8, 0)
+    eb:SetPoint("RIGHT", check, "LEFT", -6, 0)
     return { row = row, marker = m, box = eb, check = check }
 end
 

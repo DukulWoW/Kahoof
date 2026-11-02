@@ -43,7 +43,9 @@ for _, t in ipairs(QuizStore.TIMES) do TIME_OK[t] = true end
 -- FIELD LIST
 -- kind: "text" (one line of player text, max = visible characters),
 -- "id", "stamp" (a time() value), "time" (a time limit), "questions",
--- "answers" (MIN..MAX_ANSWERS texts), "index" (the correct answer).
+-- "answers" (MIN..MAX_ANSWERS texts), "indexes" (the correct answers: a sorted
+-- list, at least one; ALL-33, Dukul 2026-11-02: "More than one choice can be
+-- correct". A single number, the S3 / S4 form, is still read).
 -- label = the locale key that names the field in an error line.
 -- The about and tag limits are Claude's (2026-11-02), data.md names none.
 --------------------------------------------------------------------------------
@@ -61,7 +63,7 @@ local QUIZ_FIELDS = {
 local QUESTION_FIELDS = {
     { key = "text",    kind = "text", max = 200, required = true, label = "FIELD_QUESTION" },
     { key = "answers", kind = "answers", max = 60, label = "FIELD_ANSWER" },
-    { key = "correct", kind = "index" },
+    { key = "correct", kind = "indexes" },
     { key = "time",    kind = "time" },   -- nil = the quiz's time
     { key = "why",     kind = "text", max = 200, label = "FIELD_WHY" },
 }
@@ -180,11 +182,19 @@ local function CleanQuestion(raw, qi, quizTime)
                 out[ai] = t
             end
             q.answers = out
-        elseif f.kind == "index" then
-            if type(v) ~= "number" or v ~= math.floor(v) or v < 1 or v > #q.answers then
-                return Fail(L["QZ_ERR_CORRECT"], path)
+        elseif f.kind == "indexes" then
+            if type(v) == "number" then v = { v } end
+            if type(v) ~= "table" then return Fail(L["QZ_ERR_CORRECT"], path) end
+            local seen, list = {}, {}
+            for _, i in ipairs(v) do
+                if type(i) ~= "number" or i ~= math.floor(i) or i < 1 or i > #q.answers then
+                    return Fail(L["QZ_ERR_CORRECT"], path)
+                end
+                if not seen[i] then seen[i] = true; list[#list + 1] = i end
             end
-            q[f.key] = v
+            if #list == 0 then return Fail(L["QZ_ERR_CORRECT"], path) end
+            table.sort(list)
+            q[f.key] = list
         elseif f.kind == "time" then
             if v ~= nil then
                 local t, msg = CleanTime(v, path)

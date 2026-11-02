@@ -16,6 +16,7 @@
 --   Protocol.Decode(str)                     -> msg | nil, why
 --   Protocol.NewSessionId()                  -> 4 letters / digits
 --   Protocol.EncodeBits(set) / DecodeBits(s) -> the IN bitmap of slots
+--   Protocol.Mask(list) / Unmask(mask, n)    -> answer positions <-> one number
 
 local _, KHF = ...
 
@@ -37,14 +38,17 @@ local NONE      = {}    -- Dec's "optional field left empty"
 --
 --   START   title, question count, read time (0 none, -1 the host starts it,
 --           2-10 s), board (1 every question, 5 every fifth, 0 only at the
---           end), shuffle (0 / 1); roster: slot, name ...
---   Q       question id, time limit, read time, text; answers ... (shown
---           order; never the correct one)
+--           end), shuffle (0 / 1), mode (1 = with several correct answers any
+--           one counts, 2 = pick all of them: ALL-33); roster: slot, name ...
+--   Q       question id, time limit, read time, pick (how many answers to
+--           pick: 1 = one click; more = tick that many and press Answer),
+--           text; answers ... (shown order; never the correct ones)
 --   GO      question id, phase (1 = show the question, 2 = the host started
 --           the clock: read time "the host starts it" only)
---   A       question id, answer (shown order)                 player -> host
+--   A       question id, picks (a mask of shown positions, bit 1 = the
+--           first answer: 1-15)                              player -> host
 --   IN      question id, bitmap of the slots that answered
---   REVEAL  question id, correct (shown order), void (1 = skipped, no points),
+--   REVEAL  question id, correct (a mask like A's), void (1 = skipped, no points),
 --           why (the explanation, empty = none: here and not in Q, so it never
 --           goes out before the reveal); counts per answer ...
 --   BOARD   question id, show (1 = a leaderboard screen follows the reveal);
@@ -56,12 +60,12 @@ local NONE      = {}    -- Dec's "optional field left empty"
 --   CANCEL  reason code
 --------------------------------------------------------------------------------
 local TYPES = {
-    START  = { fields = { "title:t", "count:n", "read:n", "board:n", "shuffle:n" },
+    START  = { fields = { "title:t", "count:n", "read:n", "board:n", "shuffle:n", "mode:n" },
                rest = { "slot:n", "name:t" }, restKey = "roster", restMin = 1, restMax = 40 },
-    Q      = { fields = { "qid:n", "limit:n", "read:n", "text:t" },
+    Q      = { fields = { "qid:n", "limit:n", "read:n", "pick:n", "text:t" },
                rest = { "answer:t" }, restKey = "answers", restMin = 2, restMax = 4 },
     GO     = { fields = { "qid:n", "phase:n" } },
-    A      = { fields = { "qid:n", "answer:n" } },
+    A      = { fields = { "qid:n", "picks:n" } },
     IN     = { fields = { "qid:n", "bits:t" } },
     REVEAL = { fields = { "qid:n", "correct:n", "void:n", "why:t" },
                rest = { "count:n" }, restKey = "counts", restMin = 2, restMax = 4 },
@@ -225,4 +229,25 @@ function Protocol.DecodeBits(s)
         end
     end
     return set, n
+end
+
+-- Answer positions as one number: position p = 2^(p-1). { 1, 3 } = 5.
+function Protocol.Mask(list)
+    local m, seen = 0, {}
+    for _, p in ipairs(list) do
+        if not seen[p] then seen[p] = true; m = m + 2 ^ (p - 1) end
+    end
+    return m
+end
+
+-- -> the sorted positions, or nil when the mask is not a whole number in
+-- 1 .. (2^n - 1) (empty, or a position past the n answers)
+function Protocol.Unmask(mask, n)
+    if type(mask) ~= "number" or mask ~= math.floor(mask) or mask < 1 or mask >= 2 ^ n then return nil end
+    local list = {}
+    for p = 1, n do
+        if mask % 2 == 1 then list[#list + 1] = p end
+        mask = math.floor(mask / 2)
+    end
+    return list
 end

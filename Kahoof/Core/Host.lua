@@ -20,12 +20,15 @@
 -- second absorbs most of the latency).
 --
 --   Host.Start(quiz, opts, players, o) -> session | nil, msg
---        opts: read (0 / -1 / 2-10), board (1 / 5 / 0), shuffle, auto
+--        opts: read (0 / -1 / 2-10), board (1 / 5 / 0), shuffle, auto,
+--              pick ("all" = several correct answers: pick all of them, the
+--              default; "one" = any one of them counts; ALL-33)
 --        players: player keys (Name-Realm); o: { id, loopback }
 --   Host.Next() / Host.StartClock() / Host.Skip() / Host.End() -> true when done
 --   Host.Cancel(reason)                 ends it for everyone, drops the session
 --   Host.Dismiss()                      drops a finished session
---   Host.RecordAnswer(slot, qid, pos)   one answer (OnMessage; the dev bots, S6)
+--   Host.RecordAnswer(slot, qid, picks) one answer: a mask of shown positions
+--                                       (OnMessage; the dev bots, S6)
 --   Host.OnMessage(msg)                 from Comms (A)
 --   Host.Get()                          the hosted session or nil
 
@@ -71,14 +74,20 @@ local function Prepare(s, qi)
             order[i], order[j] = order[j], order[i]
         end
     end
-    local shown, correct = {}, nil
+    local isRight = {}
+    for _, i in ipairs(q.correct) do isRight[i] = true end
+    local shown, correct, list = {}, {}, {}
     for pos, orig in ipairs(order) do
         shown[pos] = q.answers[orig]
-        if orig == q.correct then correct = pos end
+        if isRight[orig] then correct[pos] = true; list[#list + 1] = pos end
     end
-    s.next = { qid = qi, limit = q.time or s.quiz.time, read = s.opts.read,
-               text = q.text, answers = shown, correct = correct, why = q.why }
-    Comms.ToAudience(s, "Q", { qid = qi, limit = s.next.limit, read = s.opts.read,
+    -- How many to pick: one click when one answer is right or any one counts;
+    -- otherwise all of them, and the screen says how many (Dukul: "The number")
+    local pick = (#list == 1 or s.opts.pick == "one") and 1 or #list
+    s.next = { qid = qi, limit = q.time or s.quiz.time, read = s.opts.read, pick = pick,
+               text = q.text, answers = shown, correct = correct, nCorrect = #list,
+               mask = KHF.Protocol.Mask(list), why = q.why }
+    Comms.ToAudience(s, "Q", { qid = qi, limit = s.next.limit, read = s.opts.read, pick = pick,
                                text = q.text, answers = shown })
 end
 
@@ -137,16 +146,18 @@ local function CountIn(s)
     return n, total
 end
 
--- First answer counts; an answer after the close (limit + LATE) is refused.
+-- First answer counts; an answer after the close (limit + LATE) is refused,
+-- and so is one with more picks than the question asks for.
 -- Returns true when the answer was taken.
-function Host.RecordAnswer(slot, qid, pos)
+function Host.RecordAnswer(slot, qid, picks)
     local s = session
     if not s or s.state ~= "ANSWERING" or qid ~= s.qi then return false end
     if not s.inQuestion[slot] or s.answers[slot] then return false end
-    if type(pos) ~= "number" or pos < 1 or pos > #s.cur.answers then return false end
+    local list = KHF.Protocol.Unmask(picks, #s.cur.answers)
+    if not list or #list > s.cur.pick then return false end
     local t = S.Now() - s.openAt
     if t > s.cur.limit + Scoring.LATE then return false end
-    s.answers[slot] = { pos = pos, t = t }
+    s.answers[slot] = { picks = list, t = t }
     s.inDirty = true
     local n, total = CountIn(s)
     KHF.SendMessage("AnswerCount", s, n, total)
@@ -163,7 +174,7 @@ function Host.OnMessage(msg)
     if not s or msg.sid ~= s.id then return end
     if msg.type == "A" then
         local slot = s.bySender[msg.sender]
-        if slot then Host.RecordAnswer(slot, msg.qid, msg.answer) end
+        if slot then Host.RecordAnswer(slot, msg.qid, msg.picks) end
     end
 end
 
@@ -194,7 +205,10 @@ local function ToBoard(s)
 end
 
 -- void = Skip: the question ends now and pays nothing; it does not count as
--- played, answered or correct for anyone (accuracy stays fair)
+-- played, answered or correct for anyone (accuracy stays fair).
+-- One pick: right when it is one of the correct answers. Several (pick all):
+-- Scoring.Share, right minus wrong ticks. "correct" in the stats and the tie
+-- break time count full marks only.
 Close = function(s, void)
     if s.state ~= "ANSWERING" and s.state ~= "READING" then return end
     S.StopTimer(s)
@@ -204,16 +218,26 @@ Close = function(s, void)
     for slot, p in ipairs(s.players) do
         local a = s.answers[slot]
         local points, time = 0, nil
-        if a then counts[a.pos] = counts[a.pos] + 1 end
+        local right, wrong = 0, 0
+        if a then
+            for _, pos in ipairs(a.picks) do
+                counts[pos] = counts[pos] + 1
+                if s.cur.correct[pos] then right = right + 1 else wrong = wrong + 1 end
+            end
+        end
         if s.inQuestion[slot] and not void then
             p.played = p.played + 1
             if a then
                 time = Tenths(a.t)
                 p.answered, p.tsum = p.answered + 1, p.tsum + time
-                if a.pos == s.cur.correct then
-                    points = Scoring.Points(a.t, s.cur.limit, true)
-                    p.correct, p.ctime = p.correct + 1, p.ctime + time
+                local share
+                if s.cur.pick == 1 then
+                    share = (right > 0) and 1 or 0
+                else
+                    share = Scoring.Share(right, wrong, s.cur.nCorrect)
                 end
+                points = Scoring.Points(a.t, s.cur.limit, share)
+                if share >= 1 then p.correct, p.ctime = p.correct + 1, p.ctime + time end
             end
         end
         p.total = p.total + points
@@ -222,7 +246,7 @@ Close = function(s, void)
     if not void then s.closed = s.closed + 1 end
 
     if s.inDirty then SendIn(s) end
-    Comms.ToAudience(s, "REVEAL", { qid = s.qi, correct = s.cur.correct, void = void and 1 or 0,
+    Comms.ToAudience(s, "REVEAL", { qid = s.qi, correct = s.cur.mask, void = void and 1 or 0,
                                     why = s.cur.why, counts = counts })
     local show = ShowsBoard(s)
     Comms.ToAudience(s, "BOARD", { qid = s.qi, show = show and 1 or 0, rows = rows })
@@ -273,6 +297,7 @@ function Host.Start(quiz, opts, players, o)
         board = BOARD_OK[opts.board] and opts.board or 1,
         shuffle = opts.shuffle and true or false,
         auto = opts.auto and true or false,
+        pick = (opts.pick == "one") and "one" or "all",
     }
     s.players, s.bySender = {}, {}
     local roster = {}
@@ -287,7 +312,7 @@ function Host.Start(quiz, opts, players, o)
 
     Comms.ToAudience(s, "START", { title = quiz.title, count = s.count, read = s.opts.read,
                                    board = s.opts.board, shuffle = s.opts.shuffle and 1 or 0,
-                                   roster = roster })
+                                   mode = (s.opts.pick == "one") and 1 or 2, roster = roster })
     Prepare(s, 1)
     S.SetState(s, "STARTING", { after = S.START_DELAY, fn = function() Go(s, 1) end })
     return s

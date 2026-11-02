@@ -49,9 +49,9 @@ function QuizText.Parse(text)
             errors[#errors + 1] = string.format(L["QT_ERR_LINE"], n, msg)
         end
     end
-    -- exactly one * per question, checked when the question ends
+    -- at least one * per question (ALL-33), checked when the question ends
     local function EndQuestion()
-        if q and stars ~= 1 then Err(qw.line, L["QT_ERR_ONE_STAR"]) end
+        if q and stars < 1 then Err(qw.line, L["QT_ERR_ONE_STAR"]) end
     end
 
     local n = 0
@@ -74,7 +74,8 @@ function QuizText.Parse(text)
                 qw.answers[#q.answers] = n
                 if first == "*" then
                     stars = stars + 1
-                    q.correct = #q.answers
+                    q.correct = q.correct or {}
+                    q.correct[#q.correct + 1] = #q.answers
                 end
             end
         else
@@ -146,8 +147,10 @@ function QuizText.Write(quiz)
     for _, q in ipairs(quiz.questions or {}) do
         add("")
         add("Q: " .. q.text)
+        local right = {}
+        for _, i in ipairs(type(q.correct) == "table" and q.correct or { q.correct }) do right[i] = true end
         for i, a in ipairs(q.answers) do
-            add((i == q.correct and "* " or "- ") .. a)
+            add((right[i] and "* " or "- ") .. a)
         end
         if q.time and q.time ~= quiz.time then add("Time: " .. q.time) end
         if q.why then add("Why: " .. q.why) end

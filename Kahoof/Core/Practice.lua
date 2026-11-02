@@ -3,7 +3,7 @@
 -- it, in one client, over the loopback (Core/Comms.lua), with the real wire
 -- messages. Practice scores you (architecture.md A10) and takes the same
 -- start options as a real host (read time, leaderboard timing, shuffle,
--- auto-advance). Nothing goes over the network.
+-- auto-advance, pick one / all of several correct answers). Nothing goes over the network.
 --
 --   Practice.Start(quizId, opts) -> true | nil, msg
 --   Practice.Stop()               cancel (or close a finished one) and drop both sides
@@ -24,6 +24,7 @@ local function Defaults(opts)
     if o.read == nil then o.read = KHF.GetSetting("readTime") end
     o.board = opts.board or 1
     o.shuffle = opts.shuffle and true or false
+    o.pick = (opts.pick == "one") and "one" or "all"   -- several correct answers (ALL-33)
     if opts.auto == nil then o.auto = KHF.GetSetting("autoAdvance") and true or false else o.auto = opts.auto end
     return o
 end

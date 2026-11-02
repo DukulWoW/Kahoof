@@ -16,7 +16,8 @@
 -- s.final, s.roster).
 --
 --   Player.Expect(id, host, loopback)   take a START for this id from this host
---   Player.Answer(pos)                  -> true when sent
+--   Player.Answer(picks)                -> true when sent; picks = one position
+--                                       or a list of them (q.pick at most)
 --   Player.Leave()                      drop the session
 --   Player.OnMessage(msg)               from Comms
 --   Player.Get()
@@ -53,12 +54,18 @@ local function Open(s)
     S.SetState(s, "ANSWERING", { after = s.q.limit + Scoring.LATE, fn = Close })
 end
 
-function Player.Answer(pos)
+function Player.Answer(picks)
     local s = session
     if not s or s.state ~= "ANSWERING" or not s.q or s.my then return false end
-    if type(pos) ~= "number" or pos < 1 or pos > #s.q.answers then return false end
-    s.my = { pos = pos, t = S.Now() - s.openAt }
-    Comms.ToHost(s, "A", { qid = s.q.qid, answer = pos })
+    if type(picks) == "number" then picks = { picks } end
+    if type(picks) ~= "table" then return false end
+    local mask = KHF.Protocol.Mask(picks)
+    local list = KHF.Protocol.Unmask(mask, #s.q.answers)
+    if not list or #list ~= #picks or #list > s.q.pick then return false end
+    local set = {}
+    for _, p in ipairs(list) do set[p] = true end
+    s.my = { picks = list, set = set, t = S.Now() - s.openAt }
+    Comms.ToHost(s, "A", { qid = s.q.qid, picks = mask })
     S.SetState(s, "ANSWERED")
     return true
 end
@@ -74,8 +81,10 @@ local H = {}
 
 function H.Q(s, m)
     if m.qid < 1 or m.qid > s.count or m.limit <= 0 then return end
+    if m.pick < 1 or m.pick > #m.answers then return end
     -- only the next question is kept: a newer pre-send replaces an older one
-    s.pending = { qid = m.qid, limit = m.limit, read = m.read, text = m.text, answers = m.answers }
+    s.pending = { qid = m.qid, limit = m.limit, read = m.read, pick = m.pick,
+                  text = m.text, answers = m.answers }
 end
 
 function H.GO(s, m)
@@ -111,12 +120,25 @@ end
 
 function H.REVEAL(s, m)
     if m.qid ~= s.qi or not s.q or #m.counts ~= #s.q.answers then return end
-    if m.correct < 1 or m.correct > #s.q.answers then return end
-    local mine = s.my and s.my.pos
+    local list = KHF.Protocol.Unmask(m.correct, #s.q.answers)
+    if not list then return end
+    local correct = {}
+    for _, p in ipairs(list) do correct[p] = true end
+    -- right / partly right / wrong, for the reveal screen only (the points
+    -- come from the host's BOARD)
+    local right, wrong = 0, 0
+    for _, p in ipairs(s.my and s.my.picks or {}) do
+        if correct[p] then right = right + 1 else wrong = wrong + 1 end
+    end
+    local share = 0
+    if s.my and m.void ~= 1 then
+        if s.q.pick == 1 then share = (right > 0) and 1 or 0
+        else share = Scoring.Share(right, wrong, #list) end
+    end
     s.reveal = {
-        qid = m.qid, correct = m.correct, void = m.void == 1, counts = m.counts,
+        qid = m.qid, correct = correct, correctList = list, void = m.void == 1, counts = m.counts,
         why = (m.why ~= "") and m.why or nil,
-        mine = mine, right = mine ~= nil and mine == m.correct and m.void ~= 1,
+        mine = s.my and s.my.set, right = share >= 1, partial = share > 0 and share < 1, share = share,
     }
     -- the board screen follows after REVEAL_TIME when BOARD says so (it
     -- arrives right behind this message)
@@ -181,6 +203,7 @@ local function OnStart(m)
     local s = S.New("player", m.sid)
     s.host, s.loopback = m.sender, expect.loopback
     s.title, s.count, s.read, s.boardEvery, s.shuffle = m.title, m.count, m.read, m.board, m.shuffle == 1
+    s.pickAll = m.mode ~= 1
     s.roster, s.rosterSize, s.slot = roster, n, mySlot
     s.qi = 0
     session, expect = s, nil

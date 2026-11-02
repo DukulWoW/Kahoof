@@ -4,7 +4,8 @@
 -- computes points; ranks and the climber are worked out the same way by the
 -- host and by every player from the BOARD data, so this one file is the rule.
 --
---   Scoring.Points(elapsed, limit, correct)    -> points
+--   Scoring.Points(elapsed, limit, share)      -> points
+--   Scoring.Share(right, wrong, nCorrect)      -> 0..1 (several correct answers)
 --   Scoring.Rank(rows)                         -> ranks { [slot] = rank }, order { slot, ... }
 --   Scoring.Climber(before, after)             -> slot, places | nil
 --   Scoring.Average(sum, n)                    -> the average, or nil when n is 0
@@ -22,9 +23,12 @@ Scoring.LATE  = 0.5   -- an answer this long after time out still counts, as a l
 -- Wrong or no answer: 0. Right: 400 + speed points, the full 600 inside the
 -- grace second (it absorbs the question's arrival and most latency), then
 -- falling in a straight line to 0 at time out. A late answer (inside LATE)
--- counts as time out: 400. Rounded to whole points.
-function Scoring.Points(elapsed, limit, correct)
-    if not correct or type(elapsed) ~= "number" or type(limit) ~= "number" or limit <= 0 then
+-- counts as time out: 400. share: true = right (1), false / nil = 0, or the
+-- part of a several-correct question earned (Share): the points are that
+-- part of the full ones. Rounded to whole points.
+function Scoring.Points(elapsed, limit, share)
+    if share == true then share = 1 elseif type(share) ~= "number" then share = 0 end
+    if share <= 0 or type(elapsed) ~= "number" or type(limit) ~= "number" or limit <= 0 then
         return 0
     end
     local t = math.max(0, math.min(elapsed, limit))
@@ -34,7 +38,16 @@ function Scoring.Points(elapsed, limit, correct)
     else
         speed = Scoring.SPEED * (limit - t) / (limit - Scoring.GRACE)
     end
-    return Scoring.BASE + math.floor(speed + 0.5)
+    return math.floor(math.min(share, 1) * (Scoring.BASE + speed) + 0.5)
+end
+
+-- "Pick all correct" (ALL-33, Dukul 2026-11-02: "Right minus wrong ticks"):
+-- (right ticks - wrong ticks) / correct answers, never below 0, so ticking
+-- everything never pays. All 4 correct, 1 ticked: 0.25. A and C correct:
+-- A + C = 1, A = 0.5, A + B = 0.
+function Scoring.Share(right, wrong, nCorrect)
+    if not nCorrect or nCorrect <= 0 then return 0 end
+    return math.max(0, math.min(1, (right - wrong) / nCorrect))
 end
 
 -- rows: { { slot = n, total = points, ctime = tenths }, ... }; ctime = the

@@ -53,7 +53,7 @@ L["QZ_ERR_TOO_LONG"]     = "%s is too long: %d characters, at most %d."       --
 L["QZ_ERR_BAD_TEXT"]     = "%s holds a character that cannot be shown (a line break or a broken character)."   -- %s = field
 L["QZ_ERR_TIME"]         = "The time limit must be 10, 20, 30, 45 or 60 seconds."
 L["QZ_ERR_ANSWER_COUNT"] = "A question needs 2 to 4 answers."
-L["QZ_ERR_CORRECT"]      = "A question needs one correct answer."
+L["QZ_ERR_CORRECT"]      = "A question needs at least one correct answer."
 L["QZ_ERR_NO_QUESTIONS"] = "The quiz has no questions."
 L["QZ_ERR_TOO_MANY_Q"]   = "A quiz holds at most %d questions."               -- %d = limit
 L["QZ_ERR_DAMAGED"]      = "The quiz data is damaged."
@@ -66,7 +66,7 @@ L["STARTER_BROKEN"]      = "The starter quiz could not be read: %s"            -
 
 -- Quiz text errors (Core/QuizText.lua). The keywords Quiz: Q: Time: etc. stay English
 L["QT_ERR_LINE"]             = "Line %d: %s"                                   -- %d = line, %s = message
-L["QT_ERR_ONE_STAR"]         = "A question needs exactly one correct answer, marked with *."
+L["QT_ERR_ONE_STAR"]         = "A question needs at least one correct answer, marked with *."
 L["QT_ERR_ANSWER_NO_Q"]      = "An answer needs a Q: line above it."
 L["QT_ERR_WHY_NO_Q"]         = "Why: needs a Q: line above it."
 L["QT_ERR_TOO_MANY_ANSWERS"] = "A question has at most %d answers."            -- %d = limit
@@ -102,7 +102,7 @@ L["ED_SAVE"]             = "Save"
 L["ED_SAVED"]            = "Saved."
 L["ED_NOT_SAVED"]        = "Not saved: %s"                                     -- %s = the reason
 L["ED_ERR_Q"]            = "Question %d: %s"                                   -- %d = question number, %s = the problem
-L["ED_ERR_CORRECT_EMPTY"] = "The answer marked correct is empty."
+L["ED_ERR_CORRECT_EMPTY"] = "An answer ticked as correct is empty."
 L["ED_QUESTION_N"]       = "Question %d of %d"                                 -- %d = number, %d = count
 L["ED_ADD_Q"]            = "Add question"
 L["ED_UP"]               = "Up"
@@ -115,7 +115,8 @@ L["ED_WHY_HINT"]         = "Optional: shown to everyone after the answer"
 L["ED_TIME_QUIZ"]        = "Quiz time (%d s)"                                  -- %d = seconds
 L["ED_TIME_N"]           = "%d s"                                              -- %d = seconds
 L["ED_COUNT"]            = "%d / %d characters"                                -- %d = typed, %d = limit
-L["ED_MARKER_TIP"]       = "Click to make this the correct answer."
+L["ED_CORRECT"]          = "Correct answer"
+L["ED_CORRECT_TIP"]      = "Tick every answer that is correct. More than one may be."
 L["ED_LEAVE_CONFIRM"]    = "Leave the editor? Your changes are not saved."
 L["ED_DISCARD"]          = "Discard"
 L["ED_KEEP_EDITING"]     = "Keep editing"
