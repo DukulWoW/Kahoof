@@ -14,7 +14,7 @@ local _, KHF = ...
 local L = KHF.L
 
 local DEF_W, DEF_H = 720, 540
-local MIN_W, MIN_H = 560, 420
+local MIN_W, MIN_H = 560, 500   -- 500: the quiz editor's question pane fits (S4)
 local LOGO = KHF.ADDON_PATH .. "Assets\\logo"
 
 local TABS = { "TAB_PLAY", "TAB_QUIZZES", "TAB_HISTORY", "TAB_SETTINGS" }
@@ -25,6 +25,11 @@ local mw   -- the window, built on first open
 -- KHF.PageBuilders[key] = function(page) (UI/QuizzesTab.lua: TAB_QUIZZES).
 -- A tab without one shows the placeholder line.
 KHF.PageBuilders = {}
+-- ESC asks the shown tab first: KHF.PageEscHandlers[key] = function() that
+-- returns true when it took the key (the quiz editor going back to the list;
+-- windows-widgets.md: "Esc goes back first"). Out of combat only: in combat
+-- the game's UISpecialFrames closes the window, the page stays as it was.
+KHF.PageEscHandlers = {}
 
 -- logo.tga is 256 x 128, its art on rows 23-107 (horn tips to letter feet).
 -- Drawn at 144 x 72 (Dukul's screenshot), its top 42 above the window: the
@@ -33,6 +38,12 @@ KHF.PageBuilders = {}
 local LOGO_W, LOGO_H, LOGO_UP = 144, 72, 42
 local LOGO_OUT = LOGO_UP - 23 * LOGO_H / 128   -- how far the art reaches above the window
 local TABS_TOP = 28                             -- tab row top, under the title band
+
+local function PageEsc()
+    local idx = KHF.GetSetting("mainTab")
+    local h = TABS[idx] and KHF.PageEscHandlers[TABS[idx]]
+    return h and h() or false
+end
 
 local function SelectTab(idx)
     if not mw then return end
@@ -58,6 +69,7 @@ local function Build()
         name = "KahoofMainWindow",
         w = DEF_W, h = DEF_H, minW = MIN_W, minH = MIN_H,
         resizable = true, posKey = "main",
+        onEsc = PageEsc,
     })
 
     -- The logo over the frame art (its own frame, one level up; no mouse, so

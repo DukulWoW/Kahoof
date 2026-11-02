@@ -81,10 +81,47 @@ L["QUIZ_STARTER"]        = "Starter quiz"
 L["QUIZ_BY"]             = "by %s"                                             -- %s = author
 L["QUIZ_DUPLICATE"]      = "Duplicate"
 L["QUIZ_DELETE"]         = "Delete"
+L["QUIZ_NEW"]            = "New quiz"
+L["QUIZ_EDIT"]           = "Edit"
 L["QUIZ_DELETE_CONFIRM"] = "Delete the quiz \"%s\"? This cannot be undone."   -- %s = title
-L["QUIZ_NONE_YET"]       = "Your own quizzes show up here. Duplicate the starter quiz to make one."
+L["QUIZ_NONE_YET"]       = "Your own quizzes show up here. Press New quiz to write one, or duplicate the starter quiz."
 L["QUIZ_DB_MISSING_LINE"] = "Kahoof_DB is not loaded: your quizzes are not shown and nothing can be saved."
 L["QUIZ_DB_NEWER_LINE"]  = "Your quizzes were saved by a newer Kahoof: shown, but nothing can be saved."
 L["DB_MISSING_POPUP"]    = "Kahoof: the addon Kahoof_DB is not loaded.\n\nIt keeps your quizzes. Without it, your quizzes are not shown and nothing you make can be saved. You can still join quizzes and play the starter quiz.\n\nTurn Kahoof_DB on in the AddOns list, or install Kahoof again."
 L["DB_NEWER_POPUP"]      = "Kahoof: your quizzes were saved by a newer version of Kahoof.\n\nThis version shows them but will not change them, so nothing is lost. Update Kahoof to edit them again."
 L["OK"]                  = "OK"
+
+-- The quiz editor (UI/QuizEditor.lua, Core/QuizDraft.lua)
+L["ED_BACK"]             = "Back"
+L["ED_TITLE"]            = "Title"
+L["ED_TAG"]              = "Tag"
+L["ED_TIME"]             = "Time"
+L["ED_ABOUT"]            = "About"
+L["ED_WHY"]              = "Why"
+L["ED_SAVE"]             = "Save"
+L["ED_SAVED"]            = "Saved."
+L["ED_NOT_SAVED"]        = "Not saved: %s"                                     -- %s = the reason
+L["ED_ERR_Q"]            = "Question %d: %s"                                   -- %d = question number, %s = the problem
+L["ED_ERR_CORRECT_EMPTY"] = "The answer marked correct is empty."
+L["ED_QUESTION_N"]       = "Question %d of %d"                                 -- %d = number, %d = count
+L["ED_ADD_Q"]            = "Add question"
+L["ED_UP"]               = "Up"
+L["ED_DOWN"]             = "Down"
+L["ED_EMPTY_Q"]          = "(empty)"
+L["ED_Q_HINT"]           = "Type the question here"
+L["ED_ANSWER_HINT"]      = "Answer"
+L["ED_ANSWER_OPT_HINT"]  = "Answer (optional)"
+L["ED_WHY_HINT"]         = "Optional: shown to everyone after the answer"
+L["ED_TIME_QUIZ"]        = "Quiz time (%d s)"                                  -- %d = seconds
+L["ED_TIME_N"]           = "%d s"                                              -- %d = seconds
+L["ED_COUNT"]            = "%d / %d characters"                                -- %d = typed, %d = limit
+L["ED_MARKER_TIP"]       = "Click to make this the correct answer."
+L["ED_LEAVE_CONFIRM"]    = "Leave the editor? Your changes are not saved."
+L["ED_DISCARD"]          = "Discard"
+L["ED_KEEP_EDITING"]     = "Keep editing"
+
+-- The answer markers (raid target icons), in answer order
+L["MARKER_1"]            = "Star"
+L["MARKER_2"]            = "Circle"
+L["MARKER_3"]            = "Diamond"
+L["MARKER_4"]            = "Triangle"

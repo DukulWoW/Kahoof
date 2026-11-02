@@ -25,6 +25,7 @@ KHF.DEFAULTS = {
         main = {},
     },
     mainTab = 1,   -- the main window's last tab (1 Play, 2 My Quizzes, 3 History, 4 Settings)
+    newQuizTime = 20,   -- the time limit a new quiz starts with (10 / 20 / 30 / 45 / 60 s; data.md)
 }
 
 local QUIZZES_DEFAULTS = {

@@ -24,6 +24,7 @@ Core\Database.lua
 Core\SlashCommands.lua
 Core\QuizStore.lua
 Core\QuizText.lua
+Core\QuizDraft.lua
 
 # Data
 Data\StarterQuiz.lua
@@ -32,5 +33,6 @@ Data\StarterQuiz.lua
 UI\Widgets.lua
 UI\Theme.lua
 UI\MainWindow.lua
+UI\QuizEditor.lua
 UI\QuizzesTab.lua
 UI\Launchers.lua

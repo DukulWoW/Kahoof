@@ -1,6 +1,8 @@
--- Kahoof UI/QuizzesTab.lua: the My Quizzes tab of the main window (S3)
--- The starter quiz and your own quizzes, one row each, with Duplicate and
--- Delete (Delete asks first). New and Edit come with the editor (S4).
+-- Kahoof UI/QuizzesTab.lua: the My Quizzes tab of the main window (S3, S4)
+-- The starter quiz and your own quizzes, one row each, with Edit, Duplicate
+-- and Delete (Delete asks first; the starter quiz has Duplicate only), and New
+-- quiz on top. New and Edit swap the list for the editor page
+-- (UI/QuizEditor.lua) inside the same tab; leaving it brings the list back.
 -- Also the login popup when the quizzes cannot be saved (Kahoof_DB missing, or
 -- saved by a newer Kahoof: Core/Database.lua, InitQuizDB).
 --
@@ -14,7 +16,7 @@ local QuizStore = KHF.QuizStore
 local ROW_H, ROW_GAP = 46, 4
 local BAR_W = 22   -- room for the scroll bar right of the list
 
-local page, status, scroll, child, empty
+local page, list, newBtn, status, scroll, child, empty
 local rows = {}
 
 --------------------------------------------------------------------------------
@@ -64,6 +66,12 @@ local function InfoLine(s)
     return table.concat(parts, "   ")
 end
 
+local function OpenEditor(id)
+    KHF.QuizEditor.Attach(page, function() list:Show() end)
+    list:Hide()
+    if not KHF.QuizEditor.Open(id) then list:Show() end
+end
+
 local function CreateRow()
     local r = CreateFrame("Frame", nil, child)
     r:SetHeight(ROW_H)
@@ -85,15 +93,21 @@ local function CreateRow()
         local id, msg = QuizStore.Duplicate(s.id)
         if not id then KHF:Print(msg) end
     end)
+    r.edit = KHF.CreateButton(r, L["QUIZ_EDIT"], 80, 24)
+    r.edit:SetPoint("RIGHT", r.dup, "LEFT", -6, 0)
+    r.edit:SetScript("OnClick", function(self)
+        local s = self:GetParent()._data
+        if s then OpenEditor(s.id) end
+    end)
 
     r.title = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     r.title:SetPoint("TOPLEFT", r, "TOPLEFT", 10, -8)
-    r.title:SetPoint("RIGHT", r.dup, "LEFT", -10, 0)
+    r.title:SetPoint("RIGHT", r.edit, "LEFT", -10, 0)
     r.title:SetJustifyH("LEFT")
     r.title:SetWordWrap(false)
     r.info = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     r.info:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -5)
-    r.info:SetPoint("RIGHT", r.dup, "LEFT", -10, 0)
+    r.info:SetPoint("RIGHT", r.edit, "LEFT", -10, 0)
     r.info:SetJustifyH("LEFT")
     r.info:SetWordWrap(false)
     return r
@@ -103,6 +117,7 @@ local function Refresh()
     if not page then return end
     local state = KHF.quizDBState
     local canSave = QuizStore.CanSave()
+    newBtn:SetEnabled(canSave)
 
     scroll:ClearAllPoints()
     if state == "missing" or state == "newer" then
@@ -111,9 +126,9 @@ local function Refresh()
         scroll:SetPoint("TOPLEFT", status, "BOTTOMLEFT", 0, -10)
     else
         status:Hide()
-        scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 10, -10)
+        scroll:SetPoint("TOPLEFT", newBtn, "BOTTOMLEFT", 0, -10)
     end
-    scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -(10 + BAR_W), 10)
+    scroll:SetPoint("BOTTOMRIGHT", list, "BOTTOMRIGHT", -(10 + BAR_W), 10)
 
     local list = QuizStore.List()
     for i, s in ipairs(list) do
@@ -128,6 +143,8 @@ local function Refresh()
         r.title:SetText(KHF.EscapeText(s.title))
         r.info:SetText(InfoLine(s))
         r.dup:SetEnabled(canSave)
+        r.edit:SetShown(not s.readOnly)
+        r.edit:SetEnabled(canSave)
         r.del:SetShown(not s.readOnly)
         r.del:SetEnabled(canSave)
         r:Show()
@@ -157,12 +174,20 @@ end
 --------------------------------------------------------------------------------
 local function Build(p)
     page = p
-    status = p:CreateFontString(nil, "OVERLAY", "GameFontRed")
-    status:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -10)
-    status:SetPoint("RIGHT", p, "RIGHT", -10, 0)
+    -- The list view; the editor (UI/QuizEditor.lua) takes its place when open
+    list = CreateFrame("Frame", nil, p)
+    list:SetAllPoints()
+
+    newBtn = KHF.CreateButton(list, L["QUIZ_NEW"], 110, 24)
+    newBtn:SetPoint("TOPLEFT", list, "TOPLEFT", 10, -10)
+    newBtn:SetScript("OnClick", function() OpenEditor(nil) end)
+
+    status = list:CreateFontString(nil, "OVERLAY", "GameFontRed")
+    status:SetPoint("TOPLEFT", newBtn, "BOTTOMLEFT", 0, -10)
+    status:SetPoint("TOPRIGHT", list, "TOPRIGHT", -10, -44)
     status:SetJustifyH("LEFT")
 
-    scroll = CreateFrame("ScrollFrame", nil, p, "ScrollFrameTemplate")
+    scroll = CreateFrame("ScrollFrame", nil, list, "ScrollFrameTemplate")
     child = CreateFrame("Frame", nil, scroll)
     child:SetSize(1, 1)
     scroll:SetScrollChild(child)
@@ -172,11 +197,12 @@ local function Build(p)
     empty:SetJustifyH("LEFT")
     empty:SetText(L["QUIZ_NONE_YET"])
 
-    p:HookScript("OnShow", Refresh)
+    -- OnShow: the tab shown with the list on it, or the list back from the editor
+    list:HookScript("OnShow", Refresh)
     Refresh()
 end
 KHF.PageBuilders.TAB_QUIZZES = Build
 
 KHF.RegisterMessage("QuizzesTab", "QuizzesChanged", function()
-    if page and page:IsVisible() then Refresh() end
+    if list and list:IsVisible() then Refresh() end
 end)

@@ -248,6 +248,8 @@ end
 --   title       title text in the title band (nil = none)
 --   strata      nil = "MEDIUM" (big windows); dialogs go higher
 --   onClose     what the X and ESC do (nil = hide)
+--   onEsc       asked first on ESC: return true when it took the key (a page
+--               inside the window going back); the window then stays open
 -- Returns the frame, hidden. f.content is the area inside the frame art, below
 -- the title band. f:SetWindowTitle(text), f.CloseButton.
 --------------------------------------------------------------------------------
@@ -285,7 +287,10 @@ function KHF.CreateWindow(o)
         KHF.SaveWindowPos(self)
     end)
 
-    KHF.AttachEscClose(f, Close)
+    KHF.AttachEscClose(f, function()
+        if o.onEsc and o.onEsc(f) then return end
+        Close()
+    end)
     if o.name then tinsert(UISpecialFrames, o.name) end
 
     if o.resizable then
