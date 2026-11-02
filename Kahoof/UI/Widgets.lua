@@ -4,6 +4,7 @@
 --
 --   KHF.CreateWindow(opts)            the one window builder (windows-widgets.md)
 --   KHF.CreateButton(parent, text, w, h)
+--   KHF.SetTooltip(frame, title, line)
 --   KHF.AttachEscClose(f, closeFn, stepAside)
 --   KHF.StartDragMoving / StopDragMoving, StartGripSizing / StopGripSizing
 --   KHF.CreateResizeGrip(f, opts)
@@ -36,12 +37,23 @@ local function EnableKeyboardSafe(f)
 end
 
 -- closeFn(self): what ESC does. stepAside(self), optional: true = leave this
--- ESC to the game (e.g. a page inside the window wants it first)
-function KHF.AttachEscClose(f, closeFn, stepAside)
+-- ESC to the game (e.g. a page inside the window wants it first).
+-- onKey(self, key), optional: any other key; true = the window took it (the
+-- quiz window's answer keys), anything else goes on to the game
+function KHF.AttachEscClose(f, closeFn, stepAside, onKey)
     _kbFrames[f] = true
     f:SetScript("OnKeyDown", function(self, key)
         if InCombatLockdown() then return end
-        if key ~= "ESCAPE" or (stepAside and stepAside(self)) then
+        if key ~= "ESCAPE" then
+            if onKey and onKey(self, key) then
+                self:SetPropagateKeyboardInput(false)
+                C_Timer.After(0, function() KHF.SetPropagate(self, true) end)
+            else
+                self:SetPropagateKeyboardInput(true)
+            end
+            return
+        end
+        if stepAside and stepAside(self) then
             self:SetPropagateKeyboardInput(true)
             return
         end
@@ -250,6 +262,8 @@ end
 --   onClose     what the X and ESC do (nil = hide)
 --   onEsc       asked first on ESC: return true when it took the key (a page
 --               inside the window going back); the window then stays open
+--   onKey       onKey(f, key) for every other key, out of combat: true = taken
+--               (not passed on to the game)
 -- Returns the frame, hidden. f.content is the area inside the frame art, below
 -- the title band. f:SetWindowTitle(text), f.CloseButton.
 --------------------------------------------------------------------------------
@@ -290,7 +304,7 @@ function KHF.CreateWindow(o)
     KHF.AttachEscClose(f, function()
         if o.onEsc and o.onEsc(f) then return end
         Close()
-    end)
+    end, nil, o.onKey)
     if o.name then tinsert(UISpecialFrames, o.name) end
 
     if o.resizable then
@@ -313,6 +327,20 @@ end
 --------------------------------------------------------------------------------
 function KHF.CreateButton(parent, text, w, h)
     return KHF.Theme.CreateTextButton(parent, text, w, h)
+end
+
+-- A plain tooltip: a title (text, or a function(frame) that returns it) and
+-- an optional wrapped line under it. Hooks OnEnter / OnLeave, so a template's
+-- own hover scripts (dropdowns, check boxes) keep working; call it once per frame.
+function KHF.SetTooltip(frame, title, line)
+    frame:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText(type(title) == "function" and title(self) or title, 1, 1, 1)
+        local l = type(line) == "function" and line(self) or line
+        if l then GameTooltip:AddLine(l, nil, nil, nil, true) end
+        GameTooltip:Show()
+    end)
+    frame:HookScript("OnLeave", GameTooltip_Hide)
 end
 
 --------------------------------------------------------------------------------

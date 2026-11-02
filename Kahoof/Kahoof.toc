@@ -1,5 +1,5 @@
 ## Interface: 120105, 120100, 16001
-## Title: Kahoof
+## Title: |cffe87c21K|cffeb8a39a|cffed9952h|cfff0a76ao|cfff2b683o|cfff5c49bf|r
 ## IconTexture: Interface\AddOns\Kahoof\Assets\logo-icon
 ## Notes: Live quizzes for your party, raid or guild
 ## Author: Dukul
@@ -43,4 +43,10 @@ UI\ThemeControls.lua
 UI\MainWindow.lua
 UI\QuizEditor.lua
 UI\QuizzesTab.lua
+UI\QuizWindow.lua
+UI\QuizCountdown.lua
+UI\QuizPlay.lua
+UI\QuizBoard.lua
+UI\PlayTab.lua
+UI\OptionsPanel.lua
 UI\Launchers.lua

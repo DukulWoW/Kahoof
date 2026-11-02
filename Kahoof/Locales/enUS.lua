@@ -1,14 +1,15 @@
 -- Kahoof Locales/enUS.lua: every player-facing string, English (the default)
 -- The proxy KHF.L is made in Init.lua. A key exists here before any code uses
 -- it. Translations come after 1.0 (BNB's route): a later locale file sets only
--- the keys it translates.
+-- the keys it translates. Never spell the addon's name or its slash command:
+-- write {name} and {cmd} (Init.lua fills them in from KHF.NAME / KHF.SLASH).
 
 local _, KHF = ...
 local L = KHF.L
 
 -- Addon identity
-L["ADDON_NAME"]         = "Kahoof"
-L["LOADED_MSG"]         = "v%s loaded (%s). Type /kahoof to open it."   -- %s = version, client name
+L["ADDON_NAME"]         = "{name}"
+L["LOADED_MSG"]         = "v%s loaded (%s). Type {cmd} to open it."   -- %s = version, client name
 L["CLIENT_RETAIL"]      = "Retail"
 L["CLIENT_FOREVER"]     = "WoW Forever"
 
@@ -34,11 +35,11 @@ L["MW_RESET_TIP"]       = "Right-click to put the window back in the middle at i
 
 -- Slash commands
 L["SLASH_HELP_TITLE"]   = "Commands:"
-L["SLASH_HELP_TOGGLE"]  = "  /kahoof - open or close the window"
-L["SLASH_HELP_RESET"]   = "  /kahoof reset - put every window back in the middle of the screen"
-L["SLASH_HELP_DEBUG"]   = "  /kahoof debug on | off - debug mode until you reload or log out"
-L["SLASH_HELP_VERSION"] = "  /kahoof version - show the version"
-L["SLASH_UNKNOWN"]      = "Unknown command: %s. Type /kahoof help."
+L["SLASH_HELP_TOGGLE"]  = "  {cmd} - open or close the window"
+L["SLASH_HELP_RESET"]   = "  {cmd} reset - put every window back in the middle of the screen"
+L["SLASH_HELP_DEBUG"]   = "  {cmd} debug on | off - debug mode until you reload or log out"
+L["SLASH_HELP_VERSION"] = "  {cmd} version - show the version"
+L["SLASH_UNKNOWN"]      = "Unknown command: %s. Type {cmd} help."
 L["RESET_DONE"]         = "Every window is back in the middle of the screen."
 L["DEBUG_ON"]           = "Debug mode on until you reload or log out."
 L["DEBUG_OFF"]          = "Debug mode off."
@@ -70,8 +71,8 @@ L["QZ_ERR_TOO_MANY_Q"]   = "A quiz holds at most %d questions."               --
 L["QZ_ERR_DAMAGED"]      = "The quiz data is damaged."
 L["QZ_ERR_READ_ONLY"]    = "The starter quiz cannot be changed. Duplicate it to make your own."
 L["QZ_ERR_NOT_FOUND"]    = "That quiz is gone."
-L["QZ_ERR_DB_MISSING"]   = "Quizzes cannot be saved: the addon Kahoof_DB is not loaded."
-L["QZ_ERR_DB_NEWER"]     = "Quizzes cannot be saved: they were saved by a newer version of Kahoof."
+L["QZ_ERR_DB_MISSING"]   = "Quizzes cannot be saved: the addon {name} DB is not loaded."
+L["QZ_ERR_DB_NEWER"]     = "Quizzes cannot be saved: they were saved by a newer version of {name}."
 L["QUIZ_COPY_TITLE"]     = "%s (copy)"                                         -- %s = title
 L["STARTER_BROKEN"]      = "The starter quiz could not be read: %s"            -- %s = first error
 
@@ -96,10 +97,10 @@ L["QUIZ_NEW"]            = "New quiz"
 L["QUIZ_EDIT"]           = "Edit"
 L["QUIZ_DELETE_CONFIRM"] = "Delete the quiz \"%s\"? This cannot be undone."   -- %s = title
 L["QUIZ_NONE_YET"]       = "Your own quizzes show up here. Press New quiz to write one, or duplicate the starter quiz."
-L["QUIZ_DB_MISSING_LINE"] = "Kahoof_DB is not loaded: your quizzes are not shown and nothing can be saved."
-L["QUIZ_DB_NEWER_LINE"]  = "Your quizzes were saved by a newer Kahoof: shown, but nothing can be saved."
-L["DB_MISSING_POPUP"]    = "Kahoof: the addon Kahoof_DB is not loaded.\n\nIt keeps your quizzes. Without it, your quizzes are not shown and nothing you make can be saved. You can still join quizzes and play the starter quiz.\n\nTurn Kahoof_DB on in the AddOns list, or install Kahoof again."
-L["DB_NEWER_POPUP"]      = "Kahoof: your quizzes were saved by a newer version of Kahoof.\n\nThis version shows them but will not change them, so nothing is lost. Update Kahoof to edit them again."
+L["QUIZ_DB_MISSING_LINE"] = "{name} DB is not loaded: your quizzes are not shown and nothing can be saved."
+L["QUIZ_DB_NEWER_LINE"]  = "Your quizzes were saved by a newer {name}: shown, but nothing can be saved."
+L["DB_MISSING_POPUP"]    = "{name}: the addon {name} DB is not loaded.\n\nIt keeps your quizzes. Without it, your quizzes are not shown and nothing you make can be saved. You can still join quizzes and play the starter quiz.\n\nTurn {name} DB on in the AddOns list, or install {name} again."
+L["DB_NEWER_POPUP"]      = "{name}: your quizzes were saved by a newer version of {name}.\n\nThis version shows them but will not change them, so nothing is lost. Update {name} to edit them again."
 L["OK"]                  = "OK"
 
 -- The quiz editor (UI/QuizEditor.lua, Core/QuizDraft.lua)
@@ -147,3 +148,108 @@ L["MARKER_1"]            = "Star"
 L["MARKER_2"]            = "Circle"
 L["MARKER_3"]            = "Diamond"
 L["MARKER_4"]            = "Triangle"
+
+-- Slash commands and launchers added in S5b
+L["SLASH_HELP_LOCK"]     = "  {cmd} lock | unlock - lock or unlock resizing the main window"
+L["LOCK_DONE"]           = "Main window size locked."
+L["UNLOCK_DONE"]         = "Main window size unlocked."
+L["SLASH_HELP_MINIMAP"]  = "  {cmd} minimap - show or hide the minimap button"
+L["MINIMAP_LEFT"]        = "Left-click: open or close {name}"
+L["MINIMAP_RIGHT"]       = "Right-click: Settings"
+L["MINIMAP_HIDDEN"]      = "Minimap button hidden. Type {cmd} minimap to bring it back."
+L["MINIMAP_SHOWN"]       = "Minimap button shown."
+
+-- The game's Options > AddOns page (UI/OptionsPanel.lua)
+L["OPT_VERSION"]         = "Version: %s"                                    -- %s = version
+L["OPT_AUTHOR"]          = "by Dukul"
+L["OPT_HINT"]            = "Or type |cffffd100{cmd}|r to open the window."
+L["OPT_OPEN"]            = "Open Settings"
+
+-- Key Bindings (Bindings.xml)
+L["BIND_ANSWER_1"]       = "Answer Star (1)"
+L["BIND_ANSWER_2"]       = "Answer Circle (2)"
+L["BIND_ANSWER_3"]       = "Answer Diamond (3)"
+L["BIND_ANSWER_4"]       = "Answer Triangle (4)"
+L["BIND_SEND"]           = "Send ticked answers"
+
+-- The Play tab (UI/PlayTab.lua)
+L["PT_HEAD"]             = "Practice a quiz"
+L["PT_INTRO"]            = "Play a quiz on your own: the whole game, with you as the only player."
+L["PT_QUIZ"]             = "Quiz"
+L["PT_READ"]             = "Read time"
+L["PT_READ_NONE"]        = "None: answers at once"
+L["PT_READ_MANUAL"]      = "I start the clock"
+L["PT_SECONDS"]          = "%d s"                                           -- %d = seconds
+L["PT_BOARD"]            = "Leaderboard"
+L["PT_BOARD_EACH"]       = "After every question"
+L["PT_BOARD_FIVE"]       = "After every 5 questions"
+L["PT_BOARD_END"]        = "Only at the end"
+L["PT_PICK"]             = "Several correct answers"
+L["PT_PICK_ALL"]         = "Pick all of them"
+L["PT_PICK_ONE"]         = "Any one counts"
+L["PT_PICK_TIP"]         = "For questions with more than one correct answer. Pick all of them: players tick that many, and each wrong tick takes points off. Any one counts: one click, any correct answer is full points."
+L["PT_SHUFFLE_TIP"]      = "Shuffle each question's answers when the quiz starts. Starts as the quiz's own setting."
+L["PT_AUTO"]             = "Next by itself"
+L["PT_AUTO_TIP"]         = "Go on to the next question a few seconds after the reveal or leaderboard, without a click."
+L["PT_PRACTICE"]         = "Practice"
+L["PT_PRACTICE_TIP"]     = "Play this quiz alone, with these options. Nothing is sent to anyone."
+L["PT_HOST_LATER"]       = "Hosting a quiz for your group or guild comes in a later version."
+
+-- The quiz window (UI/QuizWindow.lua, UI/QuizPlay.lua, UI/QuizBoard.lua)
+L["QW_LEAVE"]            = "Leave quiz"
+L["QW_STOP"]             = "Stop practice"
+L["QW_NEXT"]             = "Next"
+L["QW_NEXT_TIP"]         = "Show the next question."
+L["QW_RESULTS"]          = "Results"
+L["QW_END"]              = "End"
+L["QW_END_TIP"]          = "End the quiz now and show the results. A question still running is not scored."
+L["QW_SKIP"]             = "Skip"
+L["QW_SKIP_TIP"]         = "End this question now. Nobody gets points for it."
+L["QW_START_CLOCK"]      = "Start the clock"
+L["QW_START_CLOCK_TIP"]  = "Show the answers and start the timer."
+L["QW_AGAIN"]            = "Play again"
+L["QW_MAIN_MENU"]        = "Main Menu"
+L["QW_IN_COUNT"]         = "Answered: %d / %d"                              -- %d = answers in, players
+L["QW_RUNNING"]          = "Quiz running"
+L["QW_RUNNING_TIP"]      = "Click to show the quiz window. Drag to move this button."
+L["QW_GET_READY"]        = "Get ready!"
+L["QW_ONE_QUESTION"]     = "1 question"
+L["QW_N_QUESTIONS"]      = "%d questions"                                   -- %d = count
+L["QW_STARTS_IN"]        = "Starting in"                                    -- over the raid countdown number
+L["QW_QUESTION_N"]       = "Question %d of %d"                              -- %d = number, count
+L["QW_ANSWERS_IN"]       = "Answers in"                                     -- over the raid countdown number
+L["QW_WAIT_CLOCK"]       = "Waiting for the host to start the clock."
+L["QW_PICK_N"]           = "Pick %d answers"                                -- %d = how many
+L["QW_KEYS_ONE"]         = "Keys 1-4 answer."
+L["QW_KEYS_MANY"]        = "Keys 1-4 tick, Space sends."
+L["QW_ANSWER"]           = "Answer"
+L["QW_SENT"]             = "Answer sent. Waiting for the others..."
+L["QW_TIMES_UP"]         = "Time's up!"
+L["QW_RES_RIGHT"]        = "Correct!"
+L["QW_RES_PARTIAL"]      = "Partly right."
+L["QW_RES_WRONG"]        = "Wrong."
+L["QW_RES_NONE"]         = "No answer."
+L["QW_RES_VOID"]         = "Skipped: no points for this question."
+L["QW_RES_POINTS"]       = "  +%d points"                                   -- %d = points
+L["QW_RES_TIME"]         = "  Your time: %.1f s"                            -- %.1f = seconds
+L["QW_PICKED"]           = "%d picked"                                      -- %d = players
+L["QW_YOUR_PICK"]        = "Your pick, "
+L["QW_WHY"]              = "Why: %s"                                        -- %s = the explanation
+L["QW_ENDED"]            = "The quiz has ended."
+L["QW_ENDED_HOST"]       = "The host stopped the quiz."
+L["QW_BOARD"]            = "Leaderboard"
+L["QW_BOARD_AFTER"]      = "After question %d of %d"                        -- %d = number, count
+L["QW_SHOW_ALL"]         = "Show all"
+L["QW_TOP_FIVE"]         = "Top five"
+L["QW_CLIMBER"]          = "Biggest climber: %s, up %d places"              -- %s = name, %d = places
+L["QW_CLIMBER_ONE"]      = "Biggest climber: %s, up %d place"               -- %s = name, %d = 1
+L["QW_COL_RANK"]         = "#"
+L["QW_COL_PLAYER"]       = "Player"
+L["QW_COL_POINTS"]       = "Points"
+L["QW_COL_CORRECT"]      = "Correct"
+L["QW_COL_ACCURACY"]     = "Accuracy"
+L["QW_COL_TIME"]         = "Avg. time"
+L["QW_OF"]               = "%d / %d"                                        -- %d = correct, played
+L["QW_PERCENT"]          = "%d%%"                                           -- %d = percent
+L["QW_SECONDS"]          = "%.1f s"                                         -- %.1f = seconds
+L["QW_FINAL_YOU"]        = "You finished in place %d of %d with %d points." -- %d = place, players, points

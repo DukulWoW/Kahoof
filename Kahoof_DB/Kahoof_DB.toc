@@ -1,5 +1,5 @@
 ## Interface: 120105, 120100, 16001
-## Title: Kahoof |cffaaaaaaDB|r
+## Title: |cffe87c21K|cffeb8a39a|cffed9952h|cfff0a76ao|cfff2b683o|cfff5c49bf|r |cffaaaaaaDB|r
 ## IconTexture: Interface\AddOns\Kahoof\Assets\logo-icon
 ## Notes: Quiz storage for Kahoof: keeps the quizzes you make safe
 ## Author: Dukul

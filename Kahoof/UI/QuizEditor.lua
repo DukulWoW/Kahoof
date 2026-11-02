@@ -51,7 +51,8 @@ local ROW1_Y, ROW2_Y = -20, -50   -- header rows, by their middle
 -- The question pane, top of each part from the pane's top. Top-to-top
 -- anchors only, so no box gets a second, clashing vertical anchor.
 local Y_Q, Q_H     = -28, 64
-local Y_HEAD       = -96    -- the "Correct" header over the check boxes (ALL-41)
+local Y_HEAD       = -102   -- "Answers" / "Correct" over the answer rows (ALL-41); 10 px under
+                            -- the question box, so they read as the answers' (ALL-45)
 local Y_A          = -116
 local Y_TIME       = -236
 local Y_WHY, WHY_H = -270, 50   -- bottom -320: MainWindow MIN_H 516 leaves it room
@@ -160,9 +161,10 @@ local function ShowQuestion()
     local q = Q()
     if not q then return end
     loading = true
-    W.qText:SetText(q.text)
-    for s, a in ipairs(W.answers) do a.box:SetText(q.answers[s]) end
-    W.why:SetText(q.why)
+    -- the boxes get escaped text: a saved pipe shows as one pipe
+    W.qText:SetText(KHF.EscapeText(q.text))
+    for s, a in ipairs(W.answers) do a.box:SetText(KHF.EscapeText(q.answers[s])) end
+    W.why:SetText(KHF.EscapeText(q.why))
     loading = false
     W.qHead:SetText(string.format(L["ED_QUESTION_N"], sel, #draft.questions))
     W.qUp:SetEnabled(sel > 1)
@@ -181,9 +183,9 @@ end
 
 local function ShowDraft()
     loading = true
-    W.title:SetText(draft.title)
-    W.tag:SetText(draft.tag)
-    W.about:SetText(draft.about)
+    W.title:SetText(KHF.EscapeText(draft.title))
+    W.tag:SetText(KHF.EscapeText(draft.tag))
+    W.about:SetText(KHF.EscapeText(draft.about))
     loading = false
     W.shuffle:SetChecked(draft.shuffle == true)
     W.time:GenerateMenu()
@@ -250,7 +252,7 @@ local function SetupBox(eb, max, hint, hintFont, onChange)
         end
         UpdateHint(self)
         UpdateCount(self)
-        if not loading then onChange(t) end
+        if not loading then onChange(KHF.UnescapeText(t)) end   -- the box holds a typed pipe as "||"
     end)
     eb:HookScript("OnEditFocusGained", UpdateCount)
     eb:HookScript("OnEditFocusLost", UpdateCount)

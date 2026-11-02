@@ -8,7 +8,7 @@
 -- its horns above the frame, as in Dukul's mockup; the tabs start top left
 -- (Dukul, 2026-11-02, B3: "move the centered logo to the top on the title bar").
 --
---   KHF.ToggleMainWindow() / ShowMainWindow() / HideMainWindow()
+--   KHF.ToggleMainWindow() / ShowMainWindow(tab) / HideMainWindow()
 
 local _, KHF = ...
 local L = KHF.L
@@ -68,6 +68,13 @@ local function ApplyLock()
     if mw._lockBtn then mw._lockBtn:SetSymbol(locked and "lock" or "unlock") end
 end
 
+-- /kahoof lock | unlock (ALL-53): the same as the button's left click
+function KHF.SetMainLocked(on)
+    KHF.SetSetting("mainLocked", on and true or false)
+    ApplyLock()
+    if mw and mw._lockBtn then mw._lockBtn:RefreshTip() end
+end
+
 local function LockTip()
     local reset = L["MW_RESET_TIP"]
     if KHF.GetSetting("mainLocked") then return L["MW_LOCKED"], L["MW_LOCKED_SUB"], reset end
@@ -86,9 +93,7 @@ local function BuildLock()
             KHF.db.windows.main = {}
             KHF.RestoreWindowPos(mw)
         else
-            KHF.SetSetting("mainLocked", not KHF.GetSetting("mainLocked"))
-            ApplyLock()
-            self:RefreshTip()
+            KHF.SetMainLocked(not KHF.GetSetting("mainLocked"))
         end
     end)
     mw._lockBtn = b
@@ -98,6 +103,7 @@ local function LayoutHeader()
     local pad = KHF.Theme.PAD
     local tab1 = mw._tabs[1]
     tab1:SetPoint("TOPLEFT", mw, "TOPLEFT", pad, -TABS_TOP)
+    mw._tabs[#TABS]:SetPoint("TOPRIGHT", mw, "TOPRIGHT", -pad, -TABS_TOP)   -- Settings
     -- The pages start under the tabs, the full width of the window
     local area = mw._pageArea
     area:SetPoint("TOPLEFT", mw, "TOPLEFT", pad, -(TABS_TOP + tab1:GetHeight() - 2))
@@ -145,7 +151,8 @@ local function Build()
         tab:SetID(i)
         tab:SetText(L[key])
         pcall(PanelTemplates_TabResize, tab, 15, nil, 70)
-        if i > 1 then tab:SetPoint("LEFT", mw._tabs[i - 1], "RIGHT", 4, 0) end
+        -- Settings stands alone on the right (Dukul, 2026-11-02, ALL-59); LayoutHeader places it
+        if i > 1 and key ~= "TAB_SETTINGS" then tab:SetPoint("LEFT", mw._tabs[i - 1], "RIGHT", 4, 0) end
         tab:SetScript("OnClick", function(self) SelectTab(self:GetID()) end)
         mw._tabs[i] = tab
 
@@ -171,8 +178,12 @@ local function Build()
     SelectTab(idx)
 end
 
-function KHF.ShowMainWindow()
+-- tab, optional: a tab key ("TAB_SETTINGS") to show it on
+function KHF.ShowMainWindow(tab)
     if not mw then Build() end
+    for i, key in ipairs(TABS) do
+        if key == tab then SelectTab(i) end
+    end
     mw:Show()
     mw:Raise()
 end

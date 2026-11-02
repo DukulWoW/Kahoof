@@ -1,0 +1,64 @@
+name: Bug report
+description: Something in Kahoof is broken, or shows a Lua error.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the [open issues](https://github.com/DukulWoW/Kahoof/issues) first, in case someone already reported it.
+  - type: input
+    id: version
+    attributes:
+      label: Kahoof version
+      description: Shown in the addon list, or with /kahoof version.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: WoW client
+      options:
+        - Retail
+        - WoW Forever
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: What were you doing?
+      options:
+        - Hosting a quiz
+        - Playing in someone else's quiz
+        - Practicing alone
+        - Making or editing a quiz
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead? For a quiz with others, how many players and was it a party, raid or guild quiz?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we make it happen again?
+      placeholder: |
+        1. Open Kahoof with /kahoof
+        2. Click ...
+        3. See the error
+  - type: textarea
+    id: error
+    attributes:
+      label: Lua error
+      description: If you got an error, paste the full text here. The BugSack and BugGrabber addons make errors easy to copy.
+      render: text
+  - type: textarea
+    id: addons
+    attributes:
+      label: Other addons
+      description: Optional. If the bug looks like a clash with another addon, which ones do you use?

@@ -1,0 +1,17 @@
+<Bindings>
+    <Binding name="KAHOOF_ANSWER1" category="Kahoof" runOnUp="false">
+        Kahoof.BindAnswer(1)
+    </Binding>
+    <Binding name="KAHOOF_ANSWER2" category="Kahoof" runOnUp="false">
+        Kahoof.BindAnswer(2)
+    </Binding>
+    <Binding name="KAHOOF_ANSWER3" category="Kahoof" runOnUp="false">
+        Kahoof.BindAnswer(3)
+    </Binding>
+    <Binding name="KAHOOF_ANSWER4" category="Kahoof" runOnUp="false">
+        Kahoof.BindAnswer(4)
+    </Binding>
+    <Binding name="KAHOOF_SEND" category="Kahoof" runOnUp="false">
+        Kahoof.BindSend()
+    </Binding>
+</Bindings>

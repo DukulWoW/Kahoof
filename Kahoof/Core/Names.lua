@@ -36,3 +36,11 @@ end
 function KHF.EscapeText(s)
     return (tostring(s or ""):gsub("|", "||"))
 end
+
+-- The other way, for text read from an edit box: a pipe the player types is
+-- held as "||" by the box itself, so the editor turns it back into one before
+-- saving. Saved quizzes hold plain text; the screens escape it once (a title
+-- typed "| test |" showed as "|| test ||", 2026-11-02).
+function KHF.UnescapeText(s)
+    return (tostring(s or ""):gsub("||", "|"))
+end

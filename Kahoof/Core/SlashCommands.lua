@@ -13,6 +13,8 @@ local function PrintHelp()
     KHF:Print(L["SLASH_HELP_TITLE"])
     print(L["SLASH_HELP_TOGGLE"])
     print(L["SLASH_HELP_RESET"])
+    print(L["SLASH_HELP_MINIMAP"])
+    print(L["SLASH_HELP_LOCK"])
     print(L["SLASH_HELP_DEBUG"])
     print(L["SLASH_HELP_VERSION"])
 end
@@ -23,6 +25,15 @@ local COMMANDS = {
     reset = function()
         KHF.ResetWindows()
         KHF:Print(L["RESET_DONE"])
+    end,
+    minimap = function() KHF.ToggleMinimapButton() end,
+    lock = function()
+        KHF.SetMainLocked(true)
+        KHF:Print(L["LOCK_DONE"])
+    end,
+    unlock = function()
+        KHF.SetMainLocked(false)
+        KHF:Print(L["UNLOCK_DONE"])
     end,
     debug = function(arg)
         local on
@@ -37,7 +48,7 @@ local COMMANDS = {
     end,
 }
 
-SLASH_KAHOOF1 = "/kahoof"
+SLASH_KAHOOF1 = "/" .. KHF.SLASH   -- the name in one place (Init.lua)
 SLASH_KAHOOF2 = "/khf"
 SlashCmdList["KAHOOF"] = function(msg)
     local cmd, arg = strtrim(msg or ""):match("^(%S*)%s*(.-)$")
