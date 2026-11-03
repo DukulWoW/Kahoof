@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/logo.png" width="256" alt="Kahoof logo" />
+  <img src=".github/logo.png" width="512" alt="Kahoof logo" />
   <br><br>
   <h1>Kahoof</h1>
   <b>By Dukul</b>
