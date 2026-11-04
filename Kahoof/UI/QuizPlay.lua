@@ -304,7 +304,9 @@ function P:DrawAnswers(s)
                 elseif r.mine and r.mine[i] then Paint(b, "wrong")
                 else Paint(b, "faded") end
             elseif s.my then
-                Paint(b, mine[i] and "ticked" or "dim")
+                -- sent: your pick back to the normal look, locked (disabled
+                -- above) but not grayed; the rest grayed (Dukul, 2026-11-04)
+                Paint(b, mine[i] and "open" or "dim")
             elseif st == "ANSWERING" then
                 Paint(b, ticks[i] and "ticked" or "open")
             else
@@ -410,6 +412,14 @@ function P:Draw(s)
             self.why:SetText(string.format(L["QW_WHY"], KHF.EscapeText(s.reveal.why)))
             self.why:Show()
         end
+    end
+    -- A redraw blanked the clock's number above, and Tick only writes it when
+    -- the second changes: write it again now, in the same frame. With 39 bots
+    -- a redraw comes with every answer, and the number kept vanishing until
+    -- the next second (Dukul, 2026-11-04)
+    if self._ticking then
+        self._secs = nil
+        self:Tick()
     end
 end
 

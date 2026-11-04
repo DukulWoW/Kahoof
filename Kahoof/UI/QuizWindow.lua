@@ -111,6 +111,29 @@ end
 --------------------------------------------------------------------------------
 -- THE BOTTOM BAR: Leave + the host's buttons; at the end Play again, Main
 -- Menu (bigger, in the middle) and Close, centered (Dukul, 2026-11-02, ALL-50)
+-- Page fades (Dukul, 2026-11-04: "add some fades between pages, right now
+-- it's very jarring"): a new page (Get ready, each question, each
+-- leaderboard, the results) fades in from the window's background. The
+-- changes inside one question (the clock starting, the reveal) do not.
+local FADE = 0.3
+
+local function MakeFade(f)
+    local ag = f:CreateAnimationGroup()
+    local a = ag:CreateAnimation("Alpha")
+    a:SetFromAlpha(0)
+    a:SetToAlpha(1)
+    a:SetDuration(FADE)
+    a:SetSmoothing("OUT")
+    f._fade = ag
+end
+
+local function PageKey(ps)
+    if ps.state == "FINAL" then return ":final" end
+    if ps.state == "STARTING" then return ":ready" end
+    if ps.state == "BOARD" then return ":board" .. tostring(ps.qi) end
+    return ":q" .. tostring(ps.qi)
+end
+
 --------------------------------------------------------------------------------
 local function BuildBar()
     bar = CreateFrame("Frame", nil, win.content)
@@ -280,6 +303,13 @@ local function Build()
         onKey = OnKey,
     })
     win:SetScale(KHF.GetSetting("quizScale") or 1)
+    -- The logo top left; the quiz title keeps the same inset on both sides,
+    -- so it stays centered and a long one ends in "..." before the logo
+    -- (Dukul, 2026-11-04: "make sure that the quiz name can't be obscured")
+    local LOGO_X = 10
+    KHF.AddTitleLogo(win, "TOPLEFT", LOGO_X)
+    win._titleText:SetWidth(WIN_W - 2 * (LOGO_X + KHF.LOGO_W + 6))
+    win._titleText:SetWordWrap(false)
     BuildBar()
     -- The screens' area: the content above the bar
     area = CreateFrame("Frame", nil, win.content)
@@ -287,6 +317,8 @@ local function Build()
     area:SetPoint("BOTTOMRIGHT", bar, "TOPRIGHT", 0, 6)
     play = QuizUI.BuildPlay(area)
     board = QuizUI.BuildBoard(area)
+    MakeFade(play)
+    MakeFade(board)
     BuildRunButton()
     win:HookScript("OnShow", function() QuizUI.Refresh() end)
     win:HookScript("OnHide", function()
@@ -296,6 +328,7 @@ local function Build()
 end
 
 -- Draws the shown session; hides everything when there is none
+local lastPage   -- the page last shown: a new one fades in
 function QuizUI.Refresh()
     if not win then return end
     local ps = PS()
@@ -308,18 +341,29 @@ function QuizUI.Refresh()
     UpdateRunButton()
     if not win:IsShown() then return end
     win:SetWindowTitle(KHF.EscapeText(ps.title))
+    local shown
     if ps.state == "BOARD" or ps.state == "FINAL" then
         play:Hide()
         board:Draw(ps)
+        shown = board
     else
         board:Hide()
         play:Draw(ps)
+        shown = play
+    end
+    local page = ps.id .. PageKey(ps)
+    if page ~= lastPage then
+        lastPage = page
+        shown._fade:Stop()
+        shown._fade:Play()
     end
     UpdateBar(ps)
 end
 
 function QuizUI.Show()
     if not win then Build() end
+    -- reopened mid-count: the board jumps to the end (ALL-65, Dukul: "Jump to the end")
+    if not win:IsShown() then board:FinishAnim() end
     win:Show()
     win:Raise()
 end

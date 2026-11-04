@@ -37,6 +37,25 @@ KHF.PageEscHandlers = {}
 -- the title band (24).
 local LOGO_W, LOGO_H, LOGO_UP = 144, 72, 42
 local LOGO_OUT = LOGO_UP - 23 * LOGO_H / 128   -- how far the art reaches above the window
+KHF.LOGO_W = LOGO_W
+
+-- The logo on a window's title bar, as on the main window: point "TOP" (the
+-- main window, centered) or "TOPLEFT" (the quiz window, Dukul, 2026-11-04:
+-- "just add it like the main window, but to the left"), x from that point.
+-- Its own frame, one level up, no mouse, so the title bar under it still drags.
+function KHF.AddTitleLogo(win, point, x)
+    local holder = CreateFrame("Frame", nil, win)
+    holder:SetAllPoints()
+    holder:SetFrameLevel(win:GetFrameLevel() + 5)
+    local logo = holder:CreateTexture(nil, "ARTWORK")
+    logo:SetTexture(LOGO)
+    logo:SetSize(LOGO_W, LOGO_H)
+    logo:SetPoint(point, win, point, x or 0, LOGO_UP)
+    -- the clamp keeps the horns on screen too (the theme set the frame art's)
+    local il, ir, it, ib = win:GetClampRectInsets()
+    win:SetClampRectInsets(il, ir, math.max(it or 0, LOGO_OUT), ib)
+    return logo
+end
 local TABS_TOP = 28                             -- tab row top, under the title band
 
 local function PageEsc()
@@ -121,18 +140,7 @@ local function Build()
     -- transparency to the window like we have in BNB")
     mw:SetAlpha(0.95)
 
-    -- The logo over the frame art (its own frame, one level up; no mouse, so
-    -- the title bar under it still drags the window)
-    local holder = CreateFrame("Frame", nil, mw)
-    holder:SetAllPoints()
-    holder:SetFrameLevel(mw:GetFrameLevel() + 5)
-    local logo = holder:CreateTexture(nil, "ARTWORK")
-    logo:SetTexture(LOGO)
-    logo:SetSize(LOGO_W, LOGO_H)
-    logo:SetPoint("TOP", mw, "TOP", 0, LOGO_UP)
-    -- The clamp keeps the horns on screen too (the theme set the frame art's)
-    local il, ir, it, ib = mw:GetClampRectInsets()
-    mw:SetClampRectInsets(il, ir, math.max(it or 0, LOGO_OUT), ib)
+    KHF.AddTitleLogo(mw, "TOP", 0)
 
     -- Page area: a dark shade with the glow over it (BNB's panes), so the
     -- pages stand out from the wood

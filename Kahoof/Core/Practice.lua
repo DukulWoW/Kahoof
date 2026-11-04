@@ -42,9 +42,17 @@ function Practice.Start(quizId, opts)
     KHF.Host.Dismiss()
     KHF.Player.Leave()
     local me = KHF.UnitKey("player")
+    -- Kahoof_Dev's bots (S6): extra players in the roster; KHF.Dev is nil without it
+    local players = { me }
+    local dev = KHF.Dev
+    if dev and dev.PracticePlayers then
+        for _, key in ipairs(dev.PracticePlayers(me) or {}) do
+            if #players < KHF.Protocol.MAX_SLOTS and key ~= me then players[#players + 1] = key end
+        end
+    end
     local id = KHF.Protocol.NewSessionId()
     KHF.Player.Expect(id, me, true)
-    local s, msg = KHF.Host.Start(quiz, Defaults(opts, quiz), { me }, { id = id, loopback = true })
+    local s, msg = KHF.Host.Start(quiz, Defaults(opts, quiz), players, { id = id, loopback = true })
     if not s then
         KHF.Player.Leave()
         return nil, msg

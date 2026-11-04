@@ -33,7 +33,7 @@ KHF.DEFAULTS = {
     newQuizTime = 20,   -- the time limit a new quiz starts with (10 / 20 / 30 / 45 / 60 s; data.md)
     quizScale = 1,        -- the quiz window's scale (the slider comes with the Settings tab)
     answerKeys = true,    -- 1-4 tick / answer and Space sends while a question shows, out of combat (S5b)
-    boardFull = false,    -- the leaderboard: false = top five + your line, true = everyone
+    boardFull = false,    -- the leaderboard: false = top ten + your line, true = everyone
     minimapIcon = { hide = false, minimapPos = 200 },   -- LibDBIcon's own table (shown by default)
 }
 

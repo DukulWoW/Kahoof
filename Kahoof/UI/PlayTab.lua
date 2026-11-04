@@ -196,6 +196,9 @@ local function Build(p)
     later:SetJustifyH("LEFT")
     later:SetText(L["PT_HOST_LATER"])
 
+    -- Kahoof_Dev's controls (the bots, S6); nothing without it
+    if KHF.Dev and KHF.Dev.PlayTabRow then pcall(KHF.Dev.PlayTabRow, p, later) end
+
     p:HookScript("OnShow", Refresh)
     Refresh()
 end

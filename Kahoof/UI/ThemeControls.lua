@@ -87,7 +87,8 @@ function Theme.AttachScrollBar(sf)
         -- Nothing to scroll: no bar at all (Dukul, 2026-11-02: "No need
         -- showing scrollbar if there is nothing to scroll"); the hooks on sf
         -- bring it back when the content grows
-        if range <= 0 then bar:Hide(); return end
+        -- bar.off: the owner turned scrolling off (the leaderboard's top ten)
+        if bar.off or range <= 0 then bar:Hide(); return end
         bar:Show()
         local atBottom = range <= 0 or pos >= range - 0.5
         for _, a in ipairs({ { up, range > 0 and pos > 0.5 }, { down, not atBottom }, { ret, not atBottom } }) do
@@ -109,7 +110,9 @@ function Theme.AttachScrollBar(sf)
     end
 
     sf:EnableMouseWheel(true)
-    sf:SetScript("OnMouseWheel", function(_, d) SetScroll(sf:GetVerticalScroll() - d * STEP) end)
+    sf:SetScript("OnMouseWheel", function(_, d)
+        if not bar.off then SetScroll(sf:GetVerticalScroll() - d * STEP) end
+    end)
     sf:HookScript("OnScrollRangeChanged", Update)
     sf:HookScript("OnVerticalScroll", Update)
     sf:HookScript("OnSizeChanged", Update)

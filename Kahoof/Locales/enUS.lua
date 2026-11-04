@@ -240,7 +240,7 @@ L["QW_ENDED_HOST"]       = "The host stopped the quiz."
 L["QW_BOARD"]            = "Leaderboard"
 L["QW_BOARD_AFTER"]      = "After question %d of %d"                        -- %d = number, count
 L["QW_SHOW_ALL"]         = "Show all"
-L["QW_TOP_FIVE"]         = "Top five"
+L["QW_TOP_TEN"]          = "Top ten"
 L["QW_CLIMBER"]          = "Biggest climber: %s, up %d places"              -- %s = name, %d = places
 L["QW_CLIMBER_ONE"]      = "Biggest climber: %s, up %d place"               -- %s = name, %d = 1
 L["QW_COL_RANK"]         = "#"
