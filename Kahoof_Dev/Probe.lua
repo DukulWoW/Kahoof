@@ -26,6 +26,9 @@ local KHF = Kahoof
 
 local Probe = {}
 D.Probe = Probe
+-- Other Dev files' message kinds on this prefix (NetTest.lua: NETP, NETF):
+-- kind -> fn(sender, ...the fields after the kind)
+Probe.handlers = {}
 
 local PREFIX = "KHFPROBE"
 local SEP = "~"
@@ -176,6 +179,7 @@ local bursts = {}         -- sender .. id -> { got, total, sender }
 local function Reply(sender, msg)
     pcall(C_ChatInfo.SendAddonMessage, PREFIX, msg, "WHISPER", sender)
 end
+Probe.Whisper = Reply
 
 local lastSecretSay = 0
 
@@ -189,7 +193,7 @@ local function OnAddon(_, prefix, msg, chanType, sender)
         return
     end
     if prefix ~= PREFIX then return end
-    local kind, id, a, b = strsplit(SEP, msg)
+    local kind, id, a, b, c, d = strsplit(SEP, msg)
     local tag = string.format("from \"%s\" via %s", tostring(sender), tostring(chanType))
     local locked = Lockdown()
     if locked ~= "false" then tag = tag .. " | my lockdown " .. locked end
@@ -218,6 +222,8 @@ local function OnAddon(_, prefix, msg, chanType, sender)
         end)
     elseif kind == "GOT" then
         Say(string.format("BURST %s arrived %s of %s at \"%s\"", tostring(id), tostring(a), tostring(b), tostring(sender)))
+    elseif Probe.handlers[kind] then
+        Probe.handlers[kind](sender, id, a, b, c, d)
     end
 end
 

@@ -67,6 +67,13 @@ end)
 --   Revealed (s, reveal)          the correct answer, counts, why, your pick
 --   BoardUpdated (s, board)       points, ranks, climber (every question)
 --   QuizEnded (s, reason)         "final", or a CANCEL reason ("stopped", ...)
+-- The network path (S8):
+--   ChatLockdown (locked)         Core/Channels.lua: the game started / stopped
+--                                 blocking addon messages (encounter, M+, PvP)
+--   SendFailed (sid, kind)        Core/Comms.lua: a send failed for good (lockdown,
+--                                 nogroup, trial, throttle, toolong, an enum name);
+--                                 that session's queued messages are dropped
+--   WhisperBounced (key)          Core/Comms.lua: a whisper went to someone offline
 -- Planned (architecture.md section 4, not sent yet): RosterChanged, LobbiesChanged
 --------------------------------------------------------------------------------
 KHF.callbacks = LibStub("CallbackHandler-1.0"):New(KHF,

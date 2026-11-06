@@ -38,12 +38,29 @@ L["SLASH_HELP_TITLE"]   = "Commands:"
 L["SLASH_HELP_TOGGLE"]  = "  {cmd} - open or close the window"
 L["SLASH_HELP_RESET"]   = "  {cmd} reset - put every window back in the middle of the screen"
 L["SLASH_HELP_DEBUG"]   = "  {cmd} debug on | off - debug mode until you reload or log out"
-L["SLASH_HELP_VERSION"] = "  {cmd} version - show the version"
+L["SLASH_HELP_VERSION"] = "  {cmd} version [guild] - your version, and who in your group (or guild) has {name}"
 L["SLASH_UNKNOWN"]      = "Unknown command: %s. Type {cmd} help."
 L["RESET_DONE"]         = "Every window is back in the middle of the screen."
 L["DEBUG_ON"]           = "Debug mode on until you reload or log out."
 L["DEBUG_OFF"]          = "Debug mode off."
 L["VERSION_MSG"]        = "Version %s on %s."   -- %s = version, client name
+
+-- Who has the addon (/kahoof version, S8)
+L["VER_ASK_GROUP"]      = "Asking your group who has {name}..."
+L["VER_ASK_GUILD"]      = "Asking your guild who has {name}..."
+L["VER_GROUP_RESULT"]   = "%d of %d in your group have {name}: %s"     -- %d = with it, group size; %s = names
+L["VER_GUILD_RESULT"]   = "%d online in your guild have {name}: %s"   -- %d = with it; %s = names
+L["VER_WITHOUT"]        = "Without it: %s"                             -- %s = names
+L["VER_ENTRY_OLD"]      = "%s (needs an update)"                       -- %s = name and version
+L["VER_NEWER"]          = "A newer version of {name} is out: %s (you have %s)."   -- %s = theirs, yours
+L["VER_TOO_SOON"]       = "You asked a moment ago. Try again in a few seconds."
+L["VER_HINT"]           = "Not in a group. {cmd} version guild asks your guild."
+L["VER_NO_GUILD"]       = "You are not in a guild."
+
+-- Addon messages (Core/Comms.lua, Core/Channels.lua)
+L["COMMS_LOCKED"]       = "The game blocks addon messages right now (an encounter, Mythic+ or a PvP match)."
+L["COMMS_TRIAL"]        = "Trial accounts cannot send addon messages."
+L["COMMS_FAILED"]       = "Could not send (%s)."                       -- %s = the reason code
 
 -- Launchers
 L["COMPARTMENT_TIP"]    = "Click to open or close the window."

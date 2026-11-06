@@ -27,11 +27,13 @@ Core\QuizText.lua
 Core\QuizDraft.lua
 Core\Scoring.lua
 Core\Protocol.lua
+Core\Channels.lua
 Core\Comms.lua
 Core\Session.lua
 Core\Host.lua
 Core\Player.lua
 Core\Practice.lua
+Core\VersionCheck.lua
 
 # Data
 Data\StarterQuiz.lua

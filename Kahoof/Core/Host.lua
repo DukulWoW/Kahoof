@@ -23,7 +23,8 @@
 --        opts: read (0 / -1 / 2-10), board (1 / 5 / 0), shuffle, auto,
 --              pick ("all" = several correct answers: pick all of them, the
 --              default; "one" = any one of them counts; ALL-33)
---        players: player keys (Name-Realm); o: { id, loopback }
+--        players: player keys (Name-Realm); o: { id, loopback, audience }
+--        (audience "group" | "guild": the channel the broadcasts go on, S8)
 --   Host.Next() / Host.StartClock() / Host.Skip() / Host.End() -> true when done
 --   Host.Cancel(reason)                 ends it for everyone, drops the session
 --   Host.Dismiss()                      drops a finished session
@@ -291,6 +292,7 @@ function Host.Start(quiz, opts, players, o)
     if #players == 0 or #players > KHF.Protocol.MAX_SLOTS then return nil, L["ENG_ERR_PLAYERS"] end
     local s = S.New("host", o.id or KHF.Protocol.NewSessionId())
     s.loopback = o.loopback and true or false
+    s.audience = (o.audience == "guild") and "guild" or "group"
     s.quiz, s.count = quiz, #quiz.questions
     s.opts = {
         read = READ_OK[opts.read] and opts.read or 0,

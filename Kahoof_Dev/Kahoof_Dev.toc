@@ -1,7 +1,7 @@
 ## Interface: 120105, 120100, 16001
 ## Title: |cffe87c21K|cffeb8a39a|cffed9952h|cfff0a76ao|cfff2b683o|cfff5c49bf|r |cffff9900Dev|r
 ## IconTexture: Interface\AddOns\Kahoof\Assets\logo-icon
-## Notes: Developer tools for Kahoof: practice bots, addon message probes. Not needed to play.
+## Notes: Developer tools for Kahoof: practice bots, addon message probes, message log, network test. Not needed to play.
 ## Author: Dukul
 ## Group: Kahoof
 ## Version: 1.0.0
@@ -10,4 +10,6 @@
 
 Bots.lua
 Probe.lua
+Log.lua
+NetTest.lua
 Kahoof_Dev.lua

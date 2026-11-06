@@ -2,9 +2,9 @@
 -- Decided in ALL-01 part 2 (networking.md, Protocol). Plain text, no
 -- compression: "<version> SEP <session id> SEP <type> SEP <field> SEP ...",
 -- SEP = byte 31. Byte 31 is stripped from player text on the way out, so quiz
--- text can never split a message; "|" is kept as it is. Parts (n/total, for
--- messages over 255 bytes) are Comms' job on the network path (S8); the
--- loopback (practice, S5a) carries whole messages.
+-- text can never split a message; "|" is kept as it is. A message over 255
+-- bytes goes as numbered parts (SplitParts / ParsePart, S8); Comms sends them
+-- and puts them back together. The loopback (practice) carries whole messages.
 --
 -- One table, TYPES, names every message's fields; Encode and Decode both read
 -- it, so the two can never disagree. Decode checks shape only (field count,
@@ -13,7 +13,9 @@
 -- host). Offline tested: _work/tools/tests/test_protocol.lua.
 --
 --   Protocol.Encode(type, sessionId, data)   -> string
---   Protocol.Decode(str)                     -> msg | nil, why
+--   Protocol.Decode(str)                     -> msg | nil, why, version
+--   Protocol.SplitParts(str, sid, mid)       -> { part, ... } (one = the whole message)
+--   Protocol.ParsePart(str)                  -> sid, mid, n, total, piece | nil
 --   Protocol.NewSessionId()                  -> 4 letters / digits
 --   Protocol.EncodeBits(set) / DecodeBits(s) -> the IN bitmap of slots
 --   Protocol.Mask(list) / Unmask(mask, n)    -> answer positions <-> one number
@@ -25,6 +27,8 @@ KHF.Protocol = Protocol
 
 Protocol.VERSION   = 1
 Protocol.MAX_SLOTS = 40
+Protocol.MAX_BYTES = 255   -- one addon message, header included
+Protocol.MAX_PARTS = 16    -- a longer message is refused (a CJK question is about 14)
 local SEP       = "\031"
 local MAX_TEXT  = 200   -- characters in one text field (the longest quiz field)
 local NONE      = {}    -- Dec's "optional field left empty"
@@ -58,6 +62,12 @@ local NONE      = {}    -- Dec's "optional field left empty"
 --   FINAL   questions played; rows: slot, total, correct, answered, played,
 --           tsum (tenths, all answers), ctime ...
 --   CANCEL  reason code
+--   HI      ver (my addon version): "who has Kahoof?"         anyone -> audience
+--   VER     ver: the answer to a HI, same id                  whisper to the asker
+-- HI and VER are read from EVERY protocol version (ANY_VERSION), so an old
+-- client still answers a new one's version check and shows as "needs an
+-- update". Their fields never change; a later version may only add fields at
+-- the end, and an older client ignores them (open = true).
 --------------------------------------------------------------------------------
 local TYPES = {
     START  = { fields = { "title:t", "count:n", "read:n", "board:n", "shuffle:n", "mode:n" },
@@ -76,7 +86,10 @@ local TYPES = {
                rest = { "slot:n", "total:n", "correct:n", "answered:n", "played:n", "tsum:n", "ctime:n" },
                restKey = "rows", restMin = 0, restMax = 40 },
     CANCEL = { fields = { "reason:t" } },
+    HI     = { fields = { "ver:t" }, open = true },
+    VER    = { fields = { "ver:t" }, open = true },
 }
+local ANY_VERSION = { HI = true, VER = true }
 Protocol.TYPES = TYPES
 
 -- "name:kind" -> name, kind (split once, at load)
@@ -147,15 +160,19 @@ function Protocol.Encode(msgType, sid, data)
     return table.concat(out, SEP)
 end
 
+-- msg.proto = the sender's protocol version. Another version than ours is
+-- refused (nil, "version", its number: S9 shows "needs update"), except HI / VER.
 function Protocol.Decode(str)
     if type(str) ~= "string" then return nil, "not text" end
     local f = Split(str)
-    if tonumber(f[1]) ~= Protocol.VERSION then return nil, "version" end
+    local ver = f[1]:match("^%d%d?%d?$") and tonumber(f[1])
+    if not ver or ver < 1 then return nil, "version" end
     local sid = f[2]
     if not (sid and sid:match("^%w%w%w%w$")) then return nil, "session id" end
     local spec = TYPES[f[3]]
+    if ver ~= Protocol.VERSION and not (spec and ANY_VERSION[f[3]]) then return nil, "version", ver end
     if not spec then return nil, "type" end
-    local msg = { type = f[3], sid = sid }
+    local msg = { type = f[3], sid = sid, proto = ver }
     local i = 4
     for _, fd in ipairs(spec.fields) do
         local v = Dec(fd.kind, f[i])
@@ -180,10 +197,59 @@ function Protocol.Decode(str)
             if per == 1 then list[k] = item[spec.rest[1].name] else list[k] = item end
         end
         msg[spec.restKey] = list
-    elseif i <= #f then
+    elseif i <= #f and not spec.open then
         return nil, "extra fields"
     end
     return msg
+end
+
+--------------------------------------------------------------------------------
+-- PARTS (S8): a message over MAX_BYTES goes as numbered parts, each
+--   "<version> SEP <sid> SEP + SEP <message id> SEP <n> SEP <total> SEP <piece>"
+-- The pieces, joined in order, are the whole message. "+" is never a message
+-- type, so a part can never be read as a whole message. The message id is the
+-- sender's own counter (1-999): two messages from one sender in flight never
+-- mix. A piece never ends inside a UTF-8 character (a quiz in Chinese or
+-- Russian splits cleanly). This frame never changes between versions, so any
+-- version's parts can be put together and the whole message read (or refused
+-- with its version).
+--------------------------------------------------------------------------------
+local PART = "+"
+
+-- A UTF-8 continuation byte (10xxxxxx): a character goes on past it
+local function Cont(b) return b ~= nil and b >= 128 and b < 192 end
+
+-- -> the parts in send order (a message that fits = itself alone), or nil when
+-- it would take more than MAX_PARTS
+function Protocol.SplitParts(str, sid, mid)
+    if #str <= Protocol.MAX_BYTES then return { str } end
+    -- room for a piece next to the longest header (n and total at two digits)
+    local head = #table.concat({ Protocol.VERSION, sid, PART, mid, Protocol.MAX_PARTS, Protocol.MAX_PARTS, "" }, SEP)
+    local room = Protocol.MAX_BYTES - head
+    local pieces, pos = {}, 1
+    while pos <= #str do
+        local stop = math.min(pos + room - 1, #str)
+        while stop < #str and stop > pos and Cont(str:byte(stop + 1)) do stop = stop - 1 end
+        pieces[#pieces + 1] = str:sub(pos, stop)
+        if #pieces > Protocol.MAX_PARTS then return nil end
+        pos = stop + 1
+    end
+    for i, piece in ipairs(pieces) do
+        pieces[i] = table.concat({ Protocol.VERSION, sid, PART, mid, i, #pieces, piece }, SEP)
+    end
+    return pieces
+end
+
+-- -> sid, message id, n, total, piece for a well-formed part; nil for anything
+-- else (a whole message, or a part that breaks the limits)
+function Protocol.ParsePart(str)
+    if type(str) ~= "string" then return nil end
+    local sid, mid, n, total, piece =
+        str:match("^%d%d?%d?\031(%w%w%w%w)\031%+\031(%d%d?%d?)\031(%d%d?)\031(%d%d?)\031(.+)$")
+    if not sid then return nil end
+    mid, n, total = tonumber(mid), tonumber(n), tonumber(total)
+    if mid < 1 or n < 1 or n > total or total < 2 or total > Protocol.MAX_PARTS then return nil end
+    return sid, mid, n, total, piece
 end
 
 --------------------------------------------------------------------------------

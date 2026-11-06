@@ -8,8 +8,8 @@ local _, KHF = ...
 -- Retail gives a realm only for players from another one.
 --   KHF.UnitNameRealm(unit) -> name, realm   (Forever: "Mango Thellama", own realm)
 --   KHF.UnitKey(unit)       -> one string    (Forever "Mango Thellama", Retail "Mango-Realm")
--- Ported from BNB.UnitNameRealm. How CHAT_MSG_ADDON names a Forever sender is
--- still open (FOR-01): network keys may need a second helper then.
+--   KHF.SenderKey(sender)   -> the same form, from CHAT_MSG_ADDON's sender
+-- Ported from BNB.UnitNameRealm.
 --------------------------------------------------------------------------------
 function KHF.UnitNameRealm(unit)
     local name, second = UnitName(unit)
@@ -26,7 +26,20 @@ function KHF.UnitKey(unit)
     local name, realm = KHF.UnitNameRealm(unit)
     if not name then return nil end
     if KHF.IsForever or not realm or realm == "" then return name end
-    return name .. "-" .. realm
+    -- the realm as the game writes it in a sender name ("Aerie Peak" ->
+    -- "AeriePeak"), so a group member's key matches their messages' sender
+    return name .. "-" .. (realm:gsub("[%s%-]", ""))
+end
+
+-- CHAT_MSG_ADDON's sender as a key that equals KHF.UnitKey for the same
+-- player (networking.md, measured on Forever 2026-11-06): Forever sends
+-- "First Last" with no realm, kept as it is; Retail sends "Name-Realm", the
+-- realm added here when it is missing. Every network name goes through this
+-- once, at arrival; nothing compares raw sender names.
+function KHF.SenderKey(sender)
+    if type(sender) ~= "string" or sender == "" then return nil end
+    if KHF.IsForever or sender:find("-", 1, true) then return sender end
+    return sender .. "-" .. (GetNormalizedRealmName and GetNormalizedRealmName() or "")
 end
 
 -- Player-written text (quiz titles, questions, answers, names from the network)

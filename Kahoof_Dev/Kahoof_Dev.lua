@@ -6,12 +6,16 @@
 -- Kahoof reads one table, Kahoof.Dev (nil without this addon):
 --   Dev.PracticePlayers(me) -> extra player keys for Practice (Core/Practice.lua)
 --   Dev.PlayTabRow(page, anchor)  extra controls on the Play tab (UI/PlayTab.lua)
+--   Dev.CommsTap(info)            every game message in / out (Core/Comms.lua):
+--                                 the message log (Log.lua), the net test (NetTest.lua)
 --
 -- KahoofDevDB: bots (0-39, how many join a practice run), skip (0-1, the
 -- share of bot answers left out).
 --
 -- /khfdev bots N | skip N (percent) | (nothing: the current values)
 -- /khfdev ping | burst | lock: addon message probes (Probe.lua, RET-01 / FOR-01)
+-- /khfdev log [clear]: the message log (Log.lua, ALL-69)
+-- /khfdev net parts | flood: S8's network test (NetTest.lua)
 
 local addonName, D = ...
 local KHF = Kahoof
@@ -32,6 +36,11 @@ KHF.Dev = {}
 
 function KHF.Dev.PracticePlayers(me)
     return D.Bots.Players(me)
+end
+
+function KHF.Dev.CommsTap(info)
+    D.Log.Add(info)
+    D.NetTest.OnTap(info)
 end
 
 local slider
@@ -62,6 +71,7 @@ local function OnLoaded(_, name)
     end
     D.db = KahoofDevDB
     D.Probe.Init()
+    D.NetTest.Init()
 end
 KHF.RegisterEvent("ADDON_LOADED", OnLoaded)
 
@@ -73,6 +83,8 @@ SlashCmdList.KAHOOFDEV = function(msg)
     if word == "ping" then return D.Probe.Ping(rest) end
     if word == "burst" then return D.Probe.Burst(rest) end
     if word == "lock" then return D.Probe.Lock(rest) end
+    if word == "log" then return D.Log.Command(rest) end
+    if word == "net" then return D.NetTest.Command(rest) end
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(%S*)")
     local n = tonumber(arg)
     if cmd == "bots" and n then
@@ -83,4 +95,5 @@ SlashCmdList.KAHOOFDEV = function(msg)
     end
     Status()
     Say("probes: /khfdev ping <chan> [name] | burst <chan> [name] [n] [s] | lock [on|off]")
+    Say("network: /khfdev log [clear] | net parts <group|guild|whisper name> | net flood <...> [n]")
 end
