@@ -11,6 +11,7 @@
 -- share of bot answers left out).
 --
 -- /khfdev bots N | skip N (percent) | (nothing: the current values)
+-- /khfdev ping | burst | lock: addon message probes (Probe.lua, RET-01 / FOR-01)
 
 local addonName, D = ...
 local KHF = Kahoof
@@ -60,11 +61,18 @@ local function OnLoaded(_, name)
         if KahoofDevDB[k] == nil then KahoofDevDB[k] = v end
     end
     D.db = KahoofDevDB
+    D.Probe.Init()
 end
 KHF.RegisterEvent("ADDON_LOADED", OnLoaded)
 
 SLASH_KAHOOFDEV1 = "/khfdev"
 SlashCmdList.KAHOOFDEV = function(msg)
+    -- the probes get the rest of the line as typed (whisper names keep case and spaces)
+    local word, rest = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
+    word = word:lower()
+    if word == "ping" then return D.Probe.Ping(rest) end
+    if word == "burst" then return D.Probe.Burst(rest) end
+    if word == "lock" then return D.Probe.Lock(rest) end
     local cmd, arg = (msg or ""):lower():match("^%s*(%S*)%s*(%S*)")
     local n = tonumber(arg)
     if cmd == "bots" and n then
@@ -74,4 +82,5 @@ SlashCmdList.KAHOOFDEV = function(msg)
         D.db.skip = math.max(0, math.min(n, 100)) / 100
     end
     Status()
+    Say("probes: /khfdev ping <chan> [name] | burst <chan> [name] [n] [s] | lock [on|off]")
 end
