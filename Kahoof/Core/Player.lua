@@ -1,4 +1,4 @@
--- Kahoof Core/Player.lua: the player side of a quiz (S5a: the question round; S9: joining)
+-- Kahoof Core/Player.lua: the player side of a quiz (S5a: the question round; S9: joining; S10: the network round)
 --
 -- The player draws what the host's last message said and sends one thing:
 -- its answer. It never decides whether an answer was right or what it scored
@@ -19,6 +19,22 @@
 -- check; START begins the round. Until START, s.prestart is true: the quiz
 -- window draws nothing for it.
 --
+-- The network round (S10):
+--   Repeats are dropped: a REVEAL or BOARD for a question that already has
+--     one (the host sends them again after its lockdown).
+--   A GO for a question that never arrived (missed in your lockdown) = SITOUT:
+--     "Waiting for the next question" (Dukul, 2026-11-09: "Sit out until the
+--     next one"); its BOARD still shows. Catch-up (SYNC) is ALL-16.
+--   A GO for the question already shown, with its Q again = Redo (ALL-67):
+--     it plays again from scratch; the climber compares with the board before.
+--   PAUSE / RESUME (ALL-66): the clock stops (Session.Hold), no answers; on
+--     RESUME the clocks follow the host's time left.
+--   Host lost: no host message for HOST_LOST s (the host sends ALIVE when it
+--     has nothing else to say), or a whisper to the host bounced = the quiz
+--     ends ("hostlost"). Not counted while you are locked down yourself.
+--   Your lockdown (s.locked): you hear nothing and cannot answer; one line
+--     says why. A send that fails for another reason: s.sendError.
+--
 -- The UI follows the message bus (Core/Events.lua): SessionState,
 -- QuestionShown, AnswerCount, Revealed, BoardUpdated, QuizEnded; the
 -- session table holds everything it draws (s.q, s.my, s.reveal, s.board,
@@ -31,7 +47,10 @@
 --   Player.Answer(picks)                -> true when sent; picks = one position
 --                                       or a list of them (q.pick at most)
 --   Player.Leave()                      drop the session (the host is told: LEAVE)
+--   Player.CanAnswer(s)                 -> true while an answer would be taken
 --   Player.OnMessage(msg)               from Comms
+--   Player.OnLockdown(locked) / OnSendFailed(sid, kind) / OnBounce(key)
+--                                       from Core/Channels.lua and Core/Comms.lua
 --   Player.Get()
 
 local _, KHF = ...
@@ -46,6 +65,7 @@ local expect    -- { id, host, loopback }: the START we wait for
 function Player.Get() return session end
 
 Player.JOIN_WAIT = 5   -- seconds without a word from the host: "No answer"
+Player.HOST_LOST = 30  -- seconds without a word from the host mid-quiz: lost (S10)
 
 function Player.Expect(id, host, loopback, watch)
     expect = { id = id, host = host, loopback = loopback and true or false, watch = watch and true or false }
@@ -60,7 +80,10 @@ function Player.Leave()
     if Live(s) and not s.loopback and not s.watch and s.host ~= KHF.UnitKey("player") then
         Comms.ToHost(s, "LEAVE", {})
     end
-    if s then S.StopTimer(s) end
+    if s then
+        S.StopTimer(s)
+        S.StopBeat(s)
+    end
     session, expect = nil, nil
 end
 
@@ -83,9 +106,15 @@ local function Open(s)
     S.SetState(s, "ANSWERING", { after = s.q.limit + Scoring.LATE, fn = Close })
 end
 
+-- Not while paused or locked down (S10)
+function Player.CanAnswer(s)
+    return (s and not s.watch and s.state == "ANSWERING" and s.q and not s.my
+            and not S.Held(s) and not s.locked) and true or false
+end
+
 function Player.Answer(picks)
     local s = session
-    if not s or s.watch or s.state ~= "ANSWERING" or not s.q or s.my then return false end
+    if not Player.CanAnswer(s) then return false end
     if type(picks) == "number" then picks = { picks } end
     if type(picks) ~= "table" then return false end
     local mask = KHF.Protocol.Mask(picks)
@@ -94,6 +123,7 @@ function Player.Answer(picks)
     local set = {}
     for _, p in ipairs(list) do set[p] = true end
     s.my = { picks = list, set = set, t = S.Now() - s.openAt }
+    s.sendError = nil
     Comms.ToHost(s, "A", { qid = s.q.qid, picks = mask })
     S.SetState(s, "ANSWERED")
     return true
@@ -124,11 +154,19 @@ function H.GO(s, m)
     end
     local q = s.pending
     if not q or q.qid ~= m.qid then
-        KHF:Debug("GO for a question that never arrived: " .. tostring(m.qid))   -- S10: SYNC
+        if m.qid == s.qi or m.qid < 1 or m.qid > s.count then return end   -- a repeat
+        -- missed in a lockdown: sit this one out (catch-up is ALL-16)
+        KHF:Debug("GO for a question that never arrived: " .. tostring(m.qid))
+        s.q, s.qi, s.my, s.reveal, s.board, s.inCount, s.sendError = nil, m.qid, nil, nil, nil, 0, nil
+        S.SetState(s, "SITOUT")
         return
     end
+    -- the question already shown, again: Redo (ALL-67). Its board no longer counts
+    if s.q and q.qid == s.qi and s.shownQid == q.qid then
+        s.shownRanks, s.shownQid = s.prevShown, nil
+    end
     s.pending = nil
-    s.q, s.qi, s.my, s.reveal, s.inCount = q, q.qid, nil, nil, 0
+    s.q, s.qi, s.my, s.reveal, s.board, s.inCount, s.sendError = q, q.qid, nil, nil, nil, 0, nil
     if q.read > 0 then
         S.SetState(s, "READING", { after = q.read, fn = Open })
     elseif q.read < 0 then
@@ -149,6 +187,7 @@ end
 
 function H.REVEAL(s, m)
     if m.qid ~= s.qi or not s.q or #m.counts ~= #s.q.answers then return end
+    if s.reveal and s.reveal.qid == m.qid then return end   -- a repeat
     local list = KHF.Protocol.Unmask(m.correct, #s.q.answers)
     if not list then return end
     local correct = {}
@@ -177,6 +216,7 @@ end
 
 function H.BOARD(s, m)
     if m.qid ~= s.qi then return end
+    if s.board and s.board.qid == m.qid then return end   -- a repeat
     local rows, mine = {}, nil
     for _, r in ipairs(m.rows) do
         if s.roster[r.slot] then
@@ -188,10 +228,12 @@ function H.BOARD(s, m)
     b.ranks, b.order = Scoring.Rank(rows)
     if b.show then
         b.climber, b.climbUp = Scoring.Climber(s.shownRanks, b.ranks)
+        s.prevShown, s.shownQid = s.shownRanks, m.qid   -- for a Redo
         s.shownRanks = b.ranks
     end
     s.board = b
     KHF.SendMessage("BoardUpdated", s, b)
+    if b.show and s.state == "SITOUT" then return ToBoard(s) end
     -- BOARD later than the reveal time (a slow network): show it now
     if b.show and s.state == "REVEAL" and S.Now() - s.stateAt >= S.REVEAL_TIME then ToBoard(s) end
 end
@@ -216,6 +258,34 @@ function H.CANCEL(s, m)
     KHF.SendMessage("QuizEnded", s, m.reason)
 end
 
+-- Pause (ALL-66): the clock stops, the screen is covered, no answers
+function H.PAUSE(s)
+    if S.Held(s, "pause") then return end
+    S.Hold(s, "pause")
+    KHF.SendMessage("QuizPaused", s)
+end
+
+-- Resume: the clocks follow the time the host had left (tenths)
+function H.RESUME(s, m)
+    if not S.Held(s, "pause") then return end
+    local q, st, left = s.q, s.state, m.left / 10
+    if st == "ANSWERING" and q then
+        S.Release(s, "pause", left + Scoring.LATE)
+    elseif st == "READING" and q and q.read > 0 then
+        S.Release(s, "pause", left)
+    else
+        S.Release(s, "pause")
+    end
+    if q and (st == "ANSWERING" or st == "ANSWERED" or st == "CLOSED") then
+        s.openAt = S.Now() - (q.limit - left)
+    elseif q and st == "READING" and q.read > 0 then
+        s.stateAt = S.Now() - (q.read - left)
+    end
+    KHF.SendMessage("QuizPaused", s)
+end
+
+function H.ALIVE() end   -- only that the host is there (OnMessage notes it)
+
 local function OnStart(m)
     if not expect or expect.id ~= m.sid or expect.host ~= m.sender then return end
     local me = KHF.UnitKey("player")
@@ -236,8 +306,16 @@ local function OnStart(m)
     s.pickAll = m.mode ~= 1
     s.roster, s.rosterSize, s.slot = roster, n, mySlot
     s.qi = 0
+    s.lastHeard = S.Now()
     session, expect = s, nil
     S.SetState(s, "STARTING")
+    if not s.loopback and not s.watch then S.StartBeat(s, S.BEAT, Player.Watch) end
+end
+
+-- The host-lost watch (S10), on the beat
+function Player.Watch(s)
+    if s.locked or not Live(s) then return end
+    if S.Now() - (s.lastHeard or 0) > Player.HOST_LOST then End(s, "hostlost") end
 end
 
 --------------------------------------------------------------------------------
@@ -311,6 +389,7 @@ function Player.OnMessage(m)
     local s = session
     if not s or m.sid ~= s.id or m.sender ~= s.host then return end
     if not Live(s) then return end
+    s.lastHeard = S.Now()
     local h = (s.prestart and LH or H)[m.type]
     if h then h(s, m) end
 end
@@ -327,3 +406,34 @@ local function OnGroupChanged()
     End(s, "hostleft")
 end
 KHF.RegisterEvent("GROUP_ROSTER_UPDATE", OnGroupChanged)
+
+--------------------------------------------------------------------------------
+-- THE NETWORK (S10)
+--------------------------------------------------------------------------------
+-- Your lockdown: you hear nothing and cannot answer until it lifts; the
+-- host-lost watch starts again from then
+function Player.OnLockdown(locked)
+    local s = session
+    if not Live(s) or s.loopback or s.prestart then return end
+    s.locked = locked and true or nil
+    if not locked then s.lastHeard = S.Now() end
+    KHF.SendMessage("QuizPaused", s)
+end
+
+function Player.OnSendFailed(sid, kind)
+    local s = session
+    if not Live(s) or s.id ~= sid or s.loopback then return end
+    if kind == "lockdown" then
+        if KHF.Channels.Locked() then return Player.OnLockdown(true) end
+        return
+    end
+    s.sendError = kind
+    KHF.SendMessage("QuizPaused", s)
+end
+
+-- A whisper to the host bounced: the host is offline
+function Player.OnBounce(key)
+    local s = session
+    if not Live(s) or s.loopback or s.watch or s.host ~= key then return end
+    End(s, s.started and "hostlost" or "nohost")
+end

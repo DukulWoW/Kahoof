@@ -51,6 +51,7 @@ UI\QuizWindow.lua
 UI\QuizCountdown.lua
 UI\QuizPlay.lua
 UI\QuizBoard.lua
+UI\HostWindow.lua
 UI\HostTab.lua
 UI\HostLobby.lua
 UI\PlayTab.lua

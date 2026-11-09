@@ -82,6 +82,15 @@ end)
 --   ReadyCheck (s)                Core/Player.lua: the host asked "are you ready?"
 -- The player's QuizEnded reasons before START (S9): nohost, removed, full,
 -- started, closed, hostleft, nogroup.
+-- The network round (S10):
+--   QuizPaused (s)                Host / Player: a pause or resume, a lockdown
+--                                 starting or ending, a send that failed (s.sendError)
+--   PlayersChanged (s)            Core/Host.lua: a player was marked left mid-quiz
+--   SendQueueEmpty ()             Core/Comms.lua: the send queue has drained
+--                                 (the host's Next stops saying "Sending...")
+-- More QuizEnded reasons (S10): hostlost (no word from the host for 30 s, or
+-- a whisper to it bounced), sendfail (the host's send failed for good), and
+-- nogroup for a host who left the group mid-quiz.
 --------------------------------------------------------------------------------
 KHF.callbacks = LibStub("CallbackHandler-1.0"):New(KHF,
     "RegisterMessage", "UnregisterMessage", "UnregisterAllMessages")

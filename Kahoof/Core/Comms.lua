@@ -16,7 +16,7 @@
 -- try again; offline (a whisper) = WhisperBounced; anything else (lockdown,
 -- not in a group, ...) = SendFailed and every queued message of that session
 -- is dropped (Dukul, 2026-11-06: stale once the lockdown lifts; what the game
--- does about it is S10). A queued IN is replaced by a newer one of the same
+-- does about it: S10, below). A queued IN is replaced by a newer one of the same
 -- session: only the latest bitmap matters, and the host's budget is small.
 --
 -- Arriving (CHAT_MSG_ADDON): secret values dropped, the sender made a key
@@ -48,7 +48,14 @@
 --   Comms.Backlog()                       messages waiting in the queue (S10: "Sending...")
 --   Comms.Reset()                         drops the queue and every half-received message
 --
--- Bus messages (Core/Events.lua): SendFailed (sid, kind), WhisperBounced (key).
+-- The engine is told directly, on the next frame (never from inside the send
+-- loop): Host.OnSendFailed / Player.OnSendFailed (sid, kind),
+-- Player.OnBounce (key), Host.OnQueueEmpty () when the queue has drained
+-- (the host's Next waits for it: networking.md, "Sending..."). A network
+-- session's s.lastOut = when its last audience message was queued (the
+-- host's ALIVE).
+-- Bus messages (Core/Events.lua): SendFailed (sid, kind), WhisperBounced (key),
+-- SendQueueEmpty ().
 -- Kahoof_Dev sees every message through KHF.Dev.CommsTap(info) (nil without it).
 
 local _, KHF = ...
@@ -146,11 +153,19 @@ local function DropWhere(test)
     end
 end
 
+-- The engine hears about it on the next frame: what it does may send again
+local function Later(fn, ...)
+    local a, b = ...
+    C_Timer.After(0, function() fn(a, b) end)
+end
+
 local function Fail(sid, kind)
     DropWhere(function(it) return it.sid == sid end)
     KHF:Debug("Send failed (" .. tostring(kind) .. "), session " .. tostring(sid))
     Tap("fail", { sid = sid, why = kind })
     KHF.SendMessage("SendFailed", sid, kind)
+    Later(KHF.Host.OnSendFailed, sid, kind)
+    Later(KHF.Player.OnSendFailed, sid, kind)
 end
 
 local function Bounce(target)
@@ -159,6 +174,7 @@ local function Bounce(target)
     DropWhere(function(it) return it.dest.whisper == target end)
     Tap("bounce", { who = target, chan = "WHISPER" })
     KHF.SendMessage("WhisperBounced", target)
+    Later(KHF.Player.OnBounce, target)
 end
 
 -- SendAddonMessage returns an Enum.SendAddonMessageResult (BNB's
@@ -243,6 +259,8 @@ local function SendTick()
     if not queue[1] and ticker then
         ticker:Cancel()
         ticker = nil
+        KHF.SendMessage("SendQueueEmpty")
+        Later(KHF.Host.OnQueueEmpty)
     end
 end
 
@@ -297,8 +315,11 @@ local function SessionSend(s, dest, msgType, data)
         Loopback(Protocol.Encode(msgType, s.id, data), msgType, s.id)
         return true
     end
+    if dest.audience then s.lastOut = GetTime() end
     local ok, kind = Comms.SendTo(dest, msgType, s.id, data)
-    if ok and s.mirror and dest.audience then Loopback(Protocol.Encode(msgType, s.id, data), msgType, s.id) end
+    -- the host's own view shows what it sent, even when the send failed (a
+    -- CANCEL that could not go out still ends the host's view)
+    if s.mirror and dest.audience then Loopback(Protocol.Encode(msgType, s.id, data), msgType, s.id) end
     return ok, kind
 end
 

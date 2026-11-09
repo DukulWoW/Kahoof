@@ -78,6 +78,14 @@ local NONE      = {}    -- Dec's "optional field left empty"
 --           It is the join accept: your name in it = you are in.
 --   CHECK   (no fields): the ready check starts               host -> audience
 --   READY   ready (0 / 1): the answer to a CHECK              whisper to the host
+-- The round, hardened (S10):
+--   PAUSE   question id (0 before the first): the host paused, the clock
+--           stops and the screen is covered (ALL-66)          host -> audience
+--   RESUME  question id, left (tenths: the time the state's clock had left
+--           on the host; 0 = none)                           host -> audience
+--   ALIVE   (no fields): only when nothing else went out for 20 s
+-- Redo (ALL-67) needs no message of its own: the same question's Q again and
+-- a GO for the question already shown.
 -- HI, VER and LOBBY are read from EVERY protocol version (ANY_VERSION), so an
 -- old client still answers a new one's version check and shows as "needs an
 -- update", and a lobby from another version is listed as one you cannot join.
@@ -112,6 +120,9 @@ local TYPES = {
                rest = { "slot:n", "name:t", "ready:o" }, restKey = "rows", restMin = 0, restMax = 40 },
     CHECK  = { fields = {} },
     READY  = { fields = { "ready:n" } },
+    PAUSE  = { fields = { "qid:n" } },
+    RESUME = { fields = { "qid:n", "left:n" } },
+    ALIVE  = { fields = {} },
 }
 local ANY_VERSION = { HI = true, VER = true, LOBBY = true }
 Protocol.TYPES = TYPES

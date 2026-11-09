@@ -51,6 +51,7 @@ local END_LINES = {
     nohost = "LB_END_nohost", removed = "LB_END_removed", full = "LB_END_full",
     started = "LB_END_started", closed = "LB_END_closed", hostleft = "LB_END_hostleft",
     nogroup = "LB_END_nogroup", stopped = "LB_END_stopped", cancelled = "LB_END_cancelled",
+    hostlost = "LB_END_hostlost", sendfail = "LB_END_sendfail",
 }
 function HostLobby.EndLine(reason)
     local key = END_LINES[reason]

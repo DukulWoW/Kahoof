@@ -62,6 +62,9 @@ L["VER_NO_GUILD"]       = "You are not in a guild."
 L["COMMS_LOCKED"]       = "The game blocks addon messages right now (an encounter, Mythic+ or a PvP match)."
 L["COMMS_TRIAL"]        = "Trial accounts cannot send addon messages."
 L["COMMS_FAILED"]       = "Could not send (%s)."                       -- %s = the reason code
+L["HOST_LOCK_PAUSE"]    = "Your quiz pauses during the encounter: the game blocks addon messages."
+L["HOST_LOCK_OVER"]     = "The game lets addon messages through again: your quiz goes on."
+L["HOST_SEND_FAILED"]   = "Your quiz ended: a message could not be sent (%s)."   -- %s = the reason code
 
 -- Launchers
 L["COMPARTMENT_TIP"]    = "Click to open or close the window."
@@ -194,7 +197,9 @@ L["BIND_SEND"]           = "Send ticked answers"
 L["HT_HEAD"]             = "Host a quiz"
 L["HT_INTRO"]            = "Open a lobby for your party or raid, or practice the quiz on your own."
 L["HT_OPEN"]             = "Open lobby"
-L["HT_OPEN_TIP"]         = "Your party or raid sees the lobby and can join it. You run the quiz and do not play it."
+L["HT_OPEN_TIP"]         = "Your party or raid sees the lobby and can join it. You run the quiz; tick I play too to play it as well."
+L["HT_PLAY"]             = "I play too"
+L["HT_PLAY_TIP"]         = "Play your own quiz as well: you get a place on the leaderboard, and the host window hides the questions and answers until each reveal. Practice always has you play."
 L["HT_GUILD_LATER"]      = "Lobbies for your guild come in a later version."
 L["PT_QUIZ"]             = "Quiz"
 L["PT_READ"]             = "Read time"
@@ -232,6 +237,8 @@ L["LB_END_hostleft"]     = "The host left your group."
 L["LB_END_nogroup"]      = "You left the group."
 L["LB_END_stopped"]      = "The host stopped the quiz."
 L["LB_END_cancelled"]    = "The quiz was cancelled."
+L["LB_END_hostlost"]     = "Lost contact with the host."
+L["LB_END_sendfail"]     = "The host's messages could not be sent: the quiz ended."
 L["HL_HEAD"]             = "Lobby: %s"                                      -- %s = quiz title
 L["HL_HAVE"]             = "%d of %d in your group have {name}"            -- %d = with it, group size
 L["HL_HAVE_ALL"]         = "Everyone in your group has it."
@@ -332,3 +339,50 @@ L["QW_OF"]               = "%d / %d"                                        -- %
 L["QW_PERCENT"]          = "%d%%"                                           -- %d = percent
 L["QW_SECONDS"]          = "%.1f s"                                         -- %.1f = seconds
 L["QW_FINAL_YOU"]        = "You finished in place %d of %d with %d points." -- %d = place, players, points
+L["QW_STOP_QUIZ"]        = "Stop quiz"
+L["QW_STOP_CONFIRM"]     = "Stop the quiz for everyone? It cannot go on afterwards."
+L["QW_LEAVE_CONFIRM"]    = "Leave this quiz? You cannot join it again."
+L["QW_END_CONFIRM"]      = "End the quiz now and show the results?"
+L["QW_YES"]              = "Yes"
+L["QW_NO"]               = "No"
+L["QW_PAUSED"]           = "Paused by host"
+L["QW_PAUSED_SUB"]       = "The clock has stopped. The quiz goes on when the host resumes it."
+L["QW_SITOUT"]           = "Waiting for the next question..."
+L["QW_SITOUT_WHY"]       = "You missed this one while the game blocked addon messages."
+L["QW_LOCKED"]           = "Paused: the game blocks addon messages during encounters."
+L["QW_SEND_FAILED"]      = "Your answer could not be sent."
+L["QW_HOST_MARK"]        = "(host)"
+
+-- The host window (UI/HostWindow.lua, ALL-62)
+L["HW_TITLE"]            = "Host"
+L["HW_DOCK"]             = "Dock"
+L["HW_DOCKED_TIP"]       = "Docked to the quiz window. Drag this window to move it on its own."
+L["HW_UNDOCKED_TIP"]     = "Click to dock it to the quiz window again."
+L["HW_ST_STARTING"]      = "Get ready"
+L["HW_ST_READING"]       = "Reading"
+L["HW_ST_ANSWERING"]     = "Answering"
+L["HW_ST_REVEAL"]        = "Reveal"
+L["HW_ST_BOARD"]         = "Leaderboard"
+L["HW_ST_PAUSED"]        = "Paused"
+L["HW_ST_LOCKED"]        = "Encounter"
+L["HW_CLOCK"]            = "%d s"                                           -- %d = seconds left
+L["HW_FIRST"]            = "First: %s"                                      -- %s = question text
+L["HW_NEXT"]             = "Next: %s"                                       -- %s = question text
+L["HW_NEXT_RESULTS"]     = "Next: the results"
+L["HW_HIDDEN"]           = "You play too: the question shows in the quiz window. Its answers show here at the reveal."
+L["HW_NEXT_HIDDEN"]      = "Next: hidden while you play too."
+L["HW_ANSWERED"]         = "Players: %d of %d answered"                     -- %d = answers in, players
+L["HW_PLAYERS"]          = "Players: %d"                                    -- %d = players
+L["HW_LEFT"]             = "left"
+L["HW_WAITING"]          = "..."
+L["HW_YOU"]              = "(you)"
+L["HW_PAUSE"]            = "Pause"
+L["HW_PAUSE_TIP"]        = "Stop the clock and cover the players' screens. Nobody can answer while paused."
+L["HW_RESUME"]           = "Resume"
+L["HW_RESUME_TIP"]       = "Start the clock again with the time that was left."
+L["HW_REDO"]             = "Redo"
+L["HW_REDO_TIP"]         = "Play the question that just ended again from the start. Its points are taken back."
+L["HW_SENDING"]          = "Sending..."
+L["HW_BLOCK_sending"]    = "Sending the next question to the players..."
+L["HW_BLOCK_locked"]     = "Paused: the game blocks addon messages (an encounter, Mythic+ or a PvP match)."
+L["HW_BLOCK_paused"]     = "Paused. Resume to go on."

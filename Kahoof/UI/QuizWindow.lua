@@ -10,8 +10,13 @@
 -- (SessionState, QuestionShown, AnswerCount, Revealed, BoardUpdated,
 -- QuizEnded) and draws what the session tables hold. It draws the PLAYER's
 -- session; the host bar reads the host's session when this client hosts it
--- (practice: you are both). The host who does not play gets its own view in
--- S10, with real players.
+-- (practice: you are both). A network host's buttons are in its own window
+-- (UI/HostWindow.lua, ALL-62, S10): here it keeps Stop quiz.
+--
+-- S10: Stop quiz (host) and Leave quiz (player) ask "Are you sure?" first in
+-- a network quiz, never in practice (Dukul, 2026-11-02: "Yes."). While the
+-- host has paused, a dark cover with "Paused by host" hides the screen
+-- (ALL-66: no free reading time).
 --
 -- ESC (and the red X) only hide the window: the quiz keeps running and the
 -- small "Quiz running" button brings it back. Leaving is its own button.
@@ -23,7 +28,7 @@
 -- Space with nothing ticked go on to the game. In combat the window takes no
 -- keys at all (KHF.AttachEscClose); the Key Bindings entries work there.
 --
---   KHF.QuizUI.Show() / Hide()
+--   KHF.QuizUI.Show() / Hide() / Frame()
 --   KHF.QuizUI.AnswerKey(n) -> true when taken    (keys, bindings, clicks)
 --   KHF.QuizUI.SendKey()    -> true when sent
 --   KHF.QuizUI.lastStart    { id, opts } of the last practice (Play again)
@@ -49,7 +54,7 @@ QuizUI.MARKER_COLOR = {
     { 0.25, 0.85, 0.25 },
 }
 
-local win, area, bar, play, board, runBtn
+local win, area, bar, play, board, runBtn, cover
 
 -- The name as shown: your own realm left out (Retail keys are Name-Realm;
 -- Forever keys are the full name already)
@@ -82,22 +87,49 @@ local function Done(ps)
     return ps.state == "FINAL" or ps.state == "ENDED"
 end
 
+-- The network host of the shown quiz (watching or playing): its buttons are
+-- in the host window
+local function NetHost(ps)
+    local hs = HS(ps)
+    return hs and not hs.loopback and hs or nil
+end
+QuizUI.NetHost = function() return NetHost(PS()) end
+
 --------------------------------------------------------------------------------
 -- LEAVING
 --------------------------------------------------------------------------------
--- Leave mid-quiz, or close a finished one. Practice, and a host watching
--- its own quiz (S9): both sides go (the host's Stop cancels it for everyone).
+-- Leave mid-quiz, or close a finished one. Practice, and a host watching or
+-- playing its own quiz: both sides go (the host's Stop cancels it for everyone).
 local function LeaveQuiz()
     local ps = PS()
-    if ps and (ps.loopback or ps.watch) then KHF.Practice.Stop() else KHF.Player.Leave() end
+    if ps and (ps.loopback or ps.watch or HS(ps)) then KHF.Practice.Stop() else KHF.Player.Leave() end
     QuizUI.Refresh()
 end
 
--- Stop practice mid-quiz: back to the main window (Dukul, 2026-11-02, ALL-48)
-local function StopOrLeave()
-    local practice = PS() and (PS().loopback or PS().watch)
+-- Stop mid-quiz: back to the main window (Dukul, 2026-11-02, ALL-48)
+local function DoStop()
+    local ps = PS()
+    local mine = ps and (ps.loopback or ps.watch or HS(ps)) and true or false
     LeaveQuiz()
-    if practice then KHF.ShowMainWindow() end
+    if mine then KHF.ShowMainWindow() end
+end
+
+StaticPopupDialogs["KAHOOF_STOP_QUIZ"] = {
+    text = L["QW_STOP_CONFIRM"], button1 = L["QW_YES"], button2 = L["QW_NO"],
+    OnAccept = function() DoStop() end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+StaticPopupDialogs["KAHOOF_LEAVE_QUIZ"] = {
+    text = L["QW_LEAVE_CONFIRM"], button1 = L["QW_YES"], button2 = L["QW_NO"],
+    OnAccept = function() DoStop() end,
+    timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3,
+}
+
+-- Practice stops at once; a network quiz asks first
+local function StopOrLeave()
+    local ps = PS()
+    if not ps or ps.loopback then return DoStop() end
+    StaticPopup_Show(NetHost(ps) and "KAHOOF_STOP_QUIZ" or "KAHOOF_LEAVE_QUIZ")
 end
 
 -- The end page's Main Menu (ALL-50)
@@ -201,13 +233,17 @@ local QUESTION_UP = { READING = true, ANSWERING = true, REVEAL = true }
 
 local function UpdateBar(ps)
     local done = Done(ps)
-    bar.leave:SetText((ps.loopback or ps.watch) and L["QW_STOP"] or L["QW_LEAVE"])
+    local net = NetHost(ps)
+    if ps.loopback then bar.leave:SetText(L["QW_STOP"])
+    elseif net then bar.leave:SetText(L["QW_STOP_QUIZ"])
+    else bar.leave:SetText(L["QW_LEAVE"]) end
     bar.leave:SetShown(not done)
     bar.close:SetShown(done)
     bar.menu:SetShown(done)
     bar.again:SetShown(done and ps.loopback and QuizUI.lastStart ~= nil)
 
-    local hs = not done and HS(ps)
+    -- a network host's buttons are in the host window (ALL-62)
+    local hs = not done and not net and HS(ps)
     for _, b in ipairs({ bar.next, bar.stop, bar.skip }) do b:SetShown(hs and true or false) end
     bar.clock:SetShown(hs and hs.state == "READING" and hs.opts.read < 0 or false)
     if not hs then
@@ -332,13 +368,34 @@ local function Build()
     board = QuizUI.BuildBoard(area)
     MakeFade(play)
     MakeFade(board)
+    -- "Paused by host" (ALL-66): a dark cover over the screens, not the bar
+    cover = CreateFrame("Frame", nil, area)
+    cover:SetAllPoints()
+    cover:SetFrameLevel(area:GetFrameLevel() + 20)
+    cover:EnableMouse(true)   -- no clicks on the answers underneath
+    local dark = cover:CreateTexture(nil, "BACKGROUND")
+    dark:SetAllPoints()
+    dark:SetColorTexture(0, 0, 0, 0.92)
+    local ct = cover:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+    ct:SetPoint("CENTER", cover, "CENTER", 0, 20)
+    ct:SetText(L["QW_PAUSED"])
+    local cs = cover:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    cs:SetPoint("TOP", ct, "BOTTOM", 0, -10)
+    cs:SetText(L["QW_PAUSED_SUB"])
+    cover:Hide()
     BuildRunButton()
-    win:HookScript("OnShow", function() QuizUI.Refresh() end)
+    win:HookScript("OnShow", function()
+        QuizUI.Refresh()
+        if KHF.HostWindow then KHF.HostWindow.Refresh(true) end   -- back with it, even after its X
+    end)
     win:HookScript("OnHide", function()
         play:StopTicking()
         UpdateRunButton()
+        if KHF.HostWindow then KHF.HostWindow.Refresh() end
     end)
 end
+
+function QuizUI.Frame() return win end
 
 -- Draws the shown session; hides everything when there is none
 local lastPage   -- the page last shown: a new one fades in
@@ -370,6 +427,7 @@ function QuizUI.Refresh()
         shown._fade:Stop()
         shown._fade:Play()
     end
+    cover:SetShown(KHF.Session.Held(ps, "pause") and not Done(ps))
     UpdateBar(ps)
 end
 
@@ -395,7 +453,8 @@ local function OnState(_, s, state)
 end
 
 KHF.RegisterMessage("QuizWindow", "SessionState", OnState)
-for _, m in ipairs({ "QuestionShown", "AnswerCount", "Revealed", "BoardUpdated", "QuizEnded" }) do
+for _, m in ipairs({ "QuestionShown", "AnswerCount", "Revealed", "BoardUpdated", "QuizEnded",
+                    "QuizPaused", "SendQueueEmpty" }) do
     KHF.RegisterMessage("QuizWindow", m, function() QuizUI.Refresh() end)
 end
 

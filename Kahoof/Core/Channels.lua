@@ -13,7 +13,8 @@
 --   Channels.CanSend()             -> true | false, "trial"
 --
 -- Bus message (Core/Events.lua): ChatLockdown (locked), when the lockdown
--- starts or ends. ADDON_RESTRICTION_STATE_CHANGED fires for other things too
+-- starts or ends; Host.OnLockdown / Player.OnLockdown (locked) are called
+-- too (S10). ADDON_RESTRICTION_STATE_CHANGED fires for other things too
 -- (type 0 came on its own on Forever, likely combat), and Retail's type
 -- numbers are not measured yet: so the state is read from
 -- InChatMessagingLockdown on every such event, never from its payload.
@@ -73,6 +74,9 @@ local function OnRestriction()
     if now ~= wasLocked then
         wasLocked = now
         KHF.SendMessage("ChatLockdown", now)
+        -- the engine (S10): the host holds its quiz, the player knows it is deaf
+        if KHF.Host then KHF.Host.OnLockdown(now) end
+        if KHF.Player then KHF.Player.OnLockdown(now) end
     end
 end
 -- a /reload inside an encounter starts locked: read it once at login, no message

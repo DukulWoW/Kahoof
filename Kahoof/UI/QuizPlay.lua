@@ -129,8 +129,9 @@ end
 --------------------------------------------------------------------------------
 -- THE COUNTDOWN
 --------------------------------------------------------------------------------
+-- Paused (ALL-66): the clock stands still at the pause
 local function Remaining(s)
-    local now = S.Now()
+    local now = (s.hold and s.hold.at) or S.Now()
     if s.state == "STARTING" then return S.START_DELAY - (now - s.stateAt), S.START_DELAY end
     local q = s.q
     if not q then return nil end
@@ -225,6 +226,17 @@ end
 -- a long question steps down a size or more rather than spill out of its box
 local function SetQuestionText(fs, text)
     FitText(fs, text, Q_FONTS, Q_H)
+end
+
+-- S10: your own lockdown, or an answer that could not be sent, over the
+-- usual status line
+local function Notice(self, s)
+    local text
+    if s.locked then text = L["QW_LOCKED"]
+    elseif s.sendError and s.state == "ANSWERED" then text = L["QW_SEND_FAILED"] end
+    if not text then return end
+    self.status:SetText(text)
+    self.status:SetTextColor(RED[1], RED[2], RED[3])
 end
 
 local function ResultLine(s)
@@ -356,6 +368,16 @@ function P:Draw(s)
         self:StartTicking()
         return
     end
+    if st == "SITOUT" then
+        -- a question missed in a lockdown: wait for the next one (S10)
+        self:StopTicking()
+        self.head:SetText(string.format(L["QW_QUESTION_N"], s.qi, s.count))
+        SetQuestionText(self.qtext, L["QW_SITOUT"])
+        self:Flow(false)
+        self.status:SetText(L["QW_SITOUT_WHY"])
+        Notice(self, s)
+        return
+    end
     if st == "ENDED" or not q then
         self:StopTicking()
         self.head:SetText("")
@@ -380,6 +402,7 @@ function P:Draw(s)
             self:StopTicking()
             self.status:SetText(L["QW_WAIT_CLOCK"])
         end
+        Notice(self, s)
         return
     end
 
@@ -416,6 +439,7 @@ function P:Draw(s)
             self.why:Show()
         end
     end
+    Notice(self, s)
     -- A redraw blanked the clock's number above, and Tick only writes it when
     -- the second changes: write it again now, in the same frame. With 39 bots
     -- a redraw comes with every answer, and the number kept vanishing until
@@ -431,7 +455,7 @@ end
 --------------------------------------------------------------------------------
 function P:Pick(s, n)
     local q = s.q
-    if s.watch or s.state ~= "ANSWERING" or not q or s.my or not q.answers[n] then return false end
+    if not KHF.Player.CanAnswer(s) or not q.answers[n] then return false end
     if q.pick == 1 then return KHF.Player.Answer(n) end
     SyncTicks(s)
     if ticks[n] then
@@ -445,7 +469,7 @@ end
 
 function P:Send(s)
     local q = s.q
-    if s.watch or s.state ~= "ANSWERING" or not q or s.my or q.pick == 1 then return false end
+    if not KHF.Player.CanAnswer(s) or q.pick == 1 then return false end
     SyncTicks(s)
     local list = {}
     for i = 1, #q.answers do

@@ -8,7 +8,8 @@
 -- Start options (game-engine.md): read time (none / 2-10 s / you start the
 -- clock), leaderboard timing (every question / every 5 / only at the end),
 -- several correct answers (pick all / any one counts), randomize answers
--- (starts as the quiz's own setting, ALL-40) and auto-advance. The read time
+-- (starts as the quiz's own setting, ALL-40), auto-advance and I play too
+-- (ALL-74, lobbies only: practice always has you play). The read time
 -- and auto-advance begin at their Settings defaults; the choices stay for
 -- the session.
 
@@ -19,7 +20,7 @@ local QuizStore = KHF.QuizStore
 local LABEL_X, CTRL_X = 10, 200
 local ROW_Y0, ROW_STEP = -80, 36
 
-local page, setup, lobbyPage, quizDD, readDD, boardDD, pickDD, shuffleCB, autoCB, startBtn, openBtn, err
+local page, setup, lobbyPage, quizDD, readDD, boardDD, pickDD, shuffleCB, autoCB, playCB, startBtn, openBtn, err
 local sel      -- the chosen quiz id
 local opts     -- the start options as chosen
 
@@ -36,7 +37,7 @@ end
 local function Options()
     if not opts then
         opts = { read = KHF.GetSetting("readTime"), board = 1, pick = "all",
-                 shuffle = false, auto = KHF.GetSetting("autoAdvance") and true or false }
+                 shuffle = false, auto = KHF.GetSetting("autoAdvance") and true or false, play = false }
     end
     return opts
 end
@@ -133,6 +134,8 @@ local function BuildOptions()
     shuffleCB = Check(L["ED_SHUFFLE"], y, L["PT_SHUFFLE_TIP"], function(on) Options().shuffle = on end)
     y = y - 30
     autoCB = Check(L["PT_AUTO"], y, L["PT_AUTO_TIP"], function(on) Options().auto = on end)
+    y = y - 30
+    playCB = Check(L["HT_PLAY"], y, L["HT_PLAY_TIP"], function(on) Options().play = on end)
     return y
 end
 
@@ -173,8 +176,12 @@ local function Refresh()
     quizDD:GenerateMenu()
     shuffleCB:SetChecked(Options().shuffle)
     autoCB:SetChecked(Options().auto)
+    playCB:SetChecked(Options().play)
     startBtn:SetEnabled(sel ~= nil)
-    openBtn:SetEnabled(sel ~= nil)
+    -- a trial account cannot send addon messages, so it cannot host (ALL-75)
+    local can = KHF.Channels.CanSend()
+    openBtn:SetEnabled(sel ~= nil and can)
+    if not can then err:SetText(L["COMMS_TRIAL"]) end
 end
 
 -- The setup page, or the lobby page while your lobby is open or its quiz runs

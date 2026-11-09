@@ -1,4 +1,4 @@
--- Kahoof Core/Host.lua: the host side of a quiz (S5a: the question round; S9: the lobby)
+-- Kahoof Core/Host.lua: the host side of a quiz (S5a: the question round; S9: the lobby; S10: the network round)
 --
 -- THE HOST IS THE AUTHORITY (game-engine.md). It owns the clock, the
 -- questions, the correct answer and every score. Players are told what to
@@ -28,7 +28,32 @@
 -- it stops with the lobby. A network host also watches its own quiz: every
 -- message to the audience is handed to this client's player side too
 -- (s.mirror, Core/Comms.lua), so the quiz window shows the host what the
--- players see, with the host bar (the host's own view is ALL-62).
+-- players see; the host's own window (UI/HostWindow.lua, ALL-62) has the
+-- buttons. With "I play too" (opts.play, ALL-74) the host is a player as
+-- well: a slot of its own (the last), its answers whispered to itself (the
+-- loopback).
+--
+-- The network round (S10):
+--   Next (and Redo) wait while the send queue has a backlog: the pre-sent
+--     question must be out before its GO ("Sending..."; auto-advance waits
+--     for the queue to drain, then goes).
+--   Pause (ALL-66): the clock stops (Session.Hold), PAUSE to everyone; an
+--     answer that arrives while paused was sent before it: taken, with the
+--     time at the pause. Resume sends RESUME with the time left.
+--   Redo (ALL-67): only the question that just ended, in its reveal or
+--     board: its points are taken back (the snapshot Close keeps) and it is
+--     played again from scratch (its Q again, then GO).
+--   Lockdown (an encounter, M+, PvP): nothing can be sent, so the quiz holds
+--     ("lock"). Held mid-question = that question is void for everyone once
+--     the lockdown ends (REVEAL void); held anywhere else = what went out
+--     just before is sent again (players drop repeats). Next, End, Pause and
+--     the clock wait for it to lift; Stop always works.
+--   A send that fails for good for any other reason ends the quiz with one
+--     line (Dukul, 2026-11-09: "End the quiz with one line").
+--   ALIVE when nothing else went to the audience for ALIVE_AFTER s (the
+--     players' host-lost watch is 30 s).
+--   A player who leaves (LEAVE, or the group) is marked left; when everyone
+--     still there has answered, the question closes.
 --
 --   Host.OpenLobby(quiz, opts, o) -> session | nil, msg     o: { audience }
 --   Host.StartLobby() -> true | nil, msg
@@ -40,6 +65,11 @@
 --        players: player keys (Name-Realm); o: { id, loopback, audience }
 --        (audience "group" | "guild": the channel the broadcasts go on, S8)
 --   Host.Next() / Host.StartClock() / Host.Skip() / Host.End() -> true when done
+--   Host.Pause() / Host.Resume() / Host.Redo()                 -> true when done
+--   Host.Blocked() -> nil | "sending" | "locked" | "paused"   why Next waits
+--   Host.CanNext() / Host.CanRedo() -> true when the button would work now
+--   Host.OnLockdown(locked) / OnSendFailed(sid, kind) / OnQueueEmpty()
+--                                       from Core/Channels.lua and Core/Comms.lua
 --   Host.Cancel(reason)                 ends it for everyone, drops the session
 --   Host.Dismiss()                      drops a finished session
 --   Host.RecordAnswer(slot, qid, picks) one answer: a mask of shown positions
@@ -49,7 +79,7 @@
 
 local _, KHF = ...
 local L = KHF.L
-local S, Scoring, Comms = KHF.Session, KHF.Scoring, KHF.Comms
+local S, Scoring, Comms, Channels = KHF.Session, KHF.Scoring, KHF.Comms, KHF.Channels
 
 local Host = {}
 KHF.Host = Host
@@ -60,6 +90,7 @@ Host.LOBBY_EVERY  = 60   -- LOBBY again while open (late log-ins; the lobby hear
 Host.ROSTER_EVERY = 2    -- ROSTER changes at most this often
 Host.WHO_EVERY    = 5    -- one LOBBY answers every WHO in this window
 Host.CHECK_TIME   = 30   -- a ready check lasts this long
+Host.ALIVE_AFTER  = 20   -- ALIVE when nothing went to the audience this long (S10)
 
 local READ_OK  = { [-1] = true, [0] = true }
 for t = 2, 10 do READ_OK[t] = true end
@@ -107,8 +138,9 @@ local function Prepare(s, qi)
     s.next = { qid = qi, limit = q.time or s.quiz.time, read = s.opts.read, pick = pick,
                text = q.text, answers = shown, correct = correct, nCorrect = #list,
                mask = KHF.Protocol.Mask(list), why = q.why }
-    Comms.ToAudience(s, "Q", { qid = qi, limit = s.next.limit, read = s.opts.read, pick = pick,
-                               text = q.text, answers = shown })
+    s.out.Q = { qid = qi, limit = s.next.limit, read = s.opts.read, pick = pick,
+                text = q.text, answers = shown }
+    Comms.ToAudience(s, "Q", s.out.Q)
 end
 
 local function SendIn(s)
@@ -157,14 +189,20 @@ end
 --------------------------------------------------------------------------------
 -- ANSWERS IN
 --------------------------------------------------------------------------------
+-- Players marked left during the question no longer count (S10)
 local function CountIn(s)
     local n, total = 0, 0
     for slot in pairs(s.inQuestion) do
-        total = total + 1
-        if s.answers[slot] then n = n + 1 end
+        local p = s.players[slot]
+        if s.answers[slot] then
+            n, total = n + 1, total + 1
+        elseif not (p and p.left) then
+            total = total + 1
+        end
     end
     return n, total
 end
+Host.CountIn = CountIn
 
 -- First answer counts; an answer after the close (limit + LATE) is refused,
 -- and so is one with more picks than the question asks for.
@@ -173,9 +211,12 @@ function Host.RecordAnswer(slot, qid, picks)
     local s = session
     if not s or s.state ~= "ANSWERING" or qid ~= s.qi then return false end
     if not s.inQuestion[slot] or s.answers[slot] then return false end
+    if S.Held(s, "lock") then return false end   -- the question is void
     local list = KHF.Protocol.Unmask(picks, #s.cur.answers)
     if not list or #list > s.cur.pick then return false end
-    local t = S.Now() - s.openAt
+    -- paused: it was sent before the pause, so it counts at the pause's time
+    local now = s.hold and s.hold.at or S.Now()
+    local t = now - s.openAt
     if t > s.cur.limit + Scoring.LATE then return false end
     s.answers[slot] = { picks = list, t = t }
     s.inDirty = true
@@ -183,10 +224,22 @@ function Host.RecordAnswer(slot, qid, picks)
     KHF.SendMessage("AnswerCount", s, n, total)
     if n >= total then
         Close(s, false)   -- everyone answered: no point waiting out the clock
-    elseif S.Now() - s.lastIn >= Host.IN_EVERY then
+    elseif not s.hold and S.Now() - s.lastIn >= Host.IN_EVERY then
         SendIn(s)
     end
     return true
+end
+
+-- A player left: when everyone still there has answered, the question closes
+local function PlayerLeft(s, slot)
+    local p = s.players[slot]
+    if not p or p.left then return end
+    p.left = true
+    KHF.SendMessage("PlayersChanged", s)
+    if s.state == "ANSWERING" and not S.Held(s, "lock") then
+        local n, total = CountIn(s)
+        if n >= total then Close(s, false) end
+    end
 end
 
 local OnLobbyMessage   -- below, with the lobby
@@ -226,12 +279,20 @@ local function Ranked(s)
     return Scoring.Rank(rows)
 end
 
+-- Auto-advance: Next by itself; while the queue still sends, as soon as it
+-- has drained (OnQueueEmpty)
+local function AutoNext()
+    local s = session
+    if s and not Host.Next() then s.nextOwed = true end
+end
+local AUTO = { after = S.AUTO_NEXT, fn = AutoNext }
+
 local function ToBoard(s)
     local b = s.board
     b.ranks, b.order = Ranked(s)
     b.climber, b.climbUp = Scoring.Climber(s.shownRanks, b.ranks)
     s.shownRanks = b.ranks
-    S.SetState(s, "BOARD", s.opts.auto and { after = S.AUTO_NEXT, fn = function() Host.Next() end } or nil)
+    S.SetState(s, "BOARD", s.opts.auto and AUTO or nil)
 end
 
 -- void = Skip: the question ends now and pays nothing; it does not count as
@@ -242,6 +303,14 @@ end
 Close = function(s, void)
     if s.state ~= "ANSWERING" and s.state ~= "READING" then return end
     S.StopTimer(s)
+    s.voidOwed = nil
+    -- Redo (ALL-67) puts everything back as it was before this question
+    local snap = {}
+    for slot, p in ipairs(s.players) do
+        snap[slot] = { total = p.total, correct = p.correct, answered = p.answered,
+                       played = p.played, tsum = p.tsum, ctime = p.ctime }
+    end
+    s.undo = { qi = s.qi, closed = s.closed, stats = snap, shownRanks = s.shownRanks }
     local counts = {}
     for i = 1, #s.cur.answers do counts[i] = 0 end
     local rows = {}
@@ -276,10 +345,12 @@ Close = function(s, void)
     if not void then s.closed = s.closed + 1 end
 
     if s.inDirty then SendIn(s) end
-    Comms.ToAudience(s, "REVEAL", { qid = s.qi, correct = s.cur.mask, void = void and 1 or 0,
-                                    why = s.cur.why, counts = counts })
+    s.out.REVEAL = { qid = s.qi, correct = s.cur.mask, void = void and 1 or 0, why = s.cur.why, counts = counts }
+    Comms.ToAudience(s, "REVEAL", s.out.REVEAL)
     local show = ShowsBoard(s)
-    Comms.ToAudience(s, "BOARD", { qid = s.qi, show = show and 1 or 0, rows = rows })
+    s.out.BOARD = { qid = s.qi, show = show and 1 or 0, rows = rows }
+    Comms.ToAudience(s, "BOARD", s.out.BOARD)
+    s.next = nil
     if s.qi < s.count then Prepare(s, s.qi + 1) end
 
     s.reveal = { qid = s.qi, correct = s.cur.correct, void = void, counts = counts }
@@ -289,7 +360,7 @@ Close = function(s, void)
     if show then
         S.SetState(s, "REVEAL", { after = S.REVEAL_TIME, fn = ToBoard })
     else
-        S.SetState(s, "REVEAL", s.opts.auto and { after = S.AUTO_NEXT, fn = function() Host.Next() end } or nil)
+        S.SetState(s, "REVEAL", s.opts.auto and AUTO or nil)
     end
 end
 
@@ -319,6 +390,7 @@ local function CleanOpts(opts)
         shuffle = opts.shuffle and true or false,
         auto = opts.auto and true or false,
         pick = (opts.pick == "one") and "one" or "all",
+        play = opts.play and true or false,   -- I play too (ALL-74): lobbies only
     }
 end
 
@@ -338,11 +410,20 @@ local function Begin(s, players)
         roster[slot] = { slot = slot, name = key }
     end
     s.qi, s.closed = 0, 0
-    Comms.ToAudience(s, "START", { title = s.quiz.title, count = s.count, read = s.opts.read,
-                                   board = s.opts.board, shuffle = s.opts.shuffle and 1 or 0,
-                                   mode = (s.opts.pick == "one") and 1 or 2, roster = roster })
+    s.out = {}
+    s.out.START = { title = s.quiz.title, count = s.count, read = s.opts.read,
+                    board = s.opts.board, shuffle = s.opts.shuffle and 1 or 0,
+                    mode = (s.opts.pick == "one") and 1 or 2, roster = roster }
+    Comms.ToAudience(s, "START", s.out.START)
     Prepare(s, 1)
     S.SetState(s, "STARTING", { after = S.START_DELAY, fn = function() Go(s, 1) end })
+    if not s.loopback then S.StartBeat(s, S.BEAT, Host.Beat) end
+end
+
+-- The heartbeat (S10): ALIVE only when nothing else went out for a while
+function Host.Beat(s)
+    if s.loopback or Channels.Locked() or Comms.Backlog() > 0 then return end
+    if S.Now() - (s.lastOut or 0) >= Host.ALIVE_AFTER then Comms.ToAudience(s, "ALIVE", {}) end
 end
 
 function Host.Start(quiz, opts, players, o)
@@ -363,7 +444,7 @@ end
 --------------------------------------------------------------------------------
 -- THE LOBBY (S9)
 --------------------------------------------------------------------------------
-local Roster, Channels = KHF.Roster, KHF.Channels
+local Roster = KHF.Roster
 
 -- Is this player in the session's audience? (a JOIN whispered by someone
 -- outside the group is not taken)
@@ -448,11 +529,13 @@ function Host.StartLobby()
     if Channels.Locked() then return nil, L["COMMS_LOCKED"] end
     Roster.EndCheck(s.lobby.roster)
     s.lobby.checkUntil = nil
-    -- the host watches its own quiz (no slot, no answers): the player side
-    -- takes this START from the mirror
+    -- the host watches its own quiz (no slot, no answers), or plays it too
+    -- (ALL-74: the last slot); the player side takes this START from the mirror
+    local me = KHF.UnitKey("player")
+    if s.opts.play and #players < KHF.Protocol.MAX_SLOTS then players[#players + 1] = me end
     s.mirror = true
     KHF.Player.Leave()
-    KHF.Player.Expect(s.id, KHF.UnitKey("player"), false, true)
+    KHF.Player.Expect(s.id, me, false, not s.opts.play)
     Begin(s, players)
     return true
 end
@@ -500,7 +583,7 @@ OnLobbyMessage = function(s, m)
             if Roster.Remove(lb.roster, m.sender, false) then RosterChanged(s) end
         else
             local slot = s.bySender and s.bySender[m.sender]
-            if slot and s.players[slot] then s.players[slot].left = true end
+            if slot then PlayerLeft(s, slot) end
         end
     elseif m.type == "READY" then
         if InLobby(s) and Roster.SetReady(lb.roster, m.sender, m.ready == 1) then RosterChanged(s) end
@@ -513,7 +596,8 @@ local function OnGroupChanged()
     local s = session
     if not Running(s) or s.loopback or s.audience ~= "group" then return end
     if not Channels.ForAudience("group") then
-        if InLobby(s) then Host.Cancel("closed") end
+        -- the host left the group: the lobby closes, a running quiz ends
+        Host.Cancel(InLobby(s) and "closed" or "nogroup")
         return
     end
     local inGroup = {}
@@ -529,27 +613,102 @@ local function OnGroupChanged()
         s.lobby.askOwed = true
         if gone then RosterChanged(s) end
     else
-        for _, p in ipairs(s.players) do
-            if not inGroup[p.key] then p.left = true end
+        for slot, p in ipairs(s.players) do
+            if not inGroup[p.key] then PlayerLeft(s, slot) end
         end
     end
 end
 KHF.RegisterEvent("GROUP_ROSTER_UPDATE", OnGroupChanged)
 
+-- Why the host's buttons wait (nil = they do not): the game blocks addon
+-- messages, the quiz is paused, or the queue is still sending (the
+-- pre-sent question must be out before its GO)
+local function Blocked(s)
+    if not s then return nil end
+    if S.Held(s, "lock") or (not s.loopback and Channels.Locked()) then return "locked" end
+    if S.Held(s, "pause") then return "paused" end
+    if not s.loopback and Comms.Backlog() > 0 then return "sending" end
+    return nil
+end
+function Host.Blocked() return Blocked(session) end
+
 -- Next: in BOARD, or in REVEAL when no board follows
+local function NextState(s)
+    return s and (s.state == "BOARD" or (s.state == "REVEAL" and s.board and not s.board.show)) or false
+end
+
+function Host.CanNext()
+    local s = session
+    return NextState(s) and not Blocked(s)
+end
+
 function Host.Next()
     local s = session
-    if not s then return false end
-    local ok = s.state == "BOARD" or (s.state == "REVEAL" and s.board and not s.board.show)
-    if not ok then return false end
+    if not Host.CanNext() then return false end
+    s.nextOwed = nil
     if s.qi < s.count then Go(s, s.qi + 1) else Final(s) end
+    return true
+end
+
+-- Redo (ALL-67): the question that just ended, while its reveal or board shows
+function Host.CanRedo()
+    local s = session
+    if not s or (s.state ~= "REVEAL" and s.state ~= "BOARD") then return false end
+    return s.undo ~= nil and s.undo.qi == s.qi and not Blocked(s)
+end
+
+function Host.Redo()
+    local s = session
+    if not Host.CanRedo() then return false end
+    local u = s.undo
+    for slot, st in pairs(u.stats) do
+        local p = s.players[slot]
+        if p then
+            p.total, p.correct, p.answered = st.total, st.correct, st.answered
+            p.played, p.tsum, p.ctime = st.played, st.tsum, st.ctime
+        end
+    end
+    s.closed, s.shownRanks, s.undo, s.nextOwed = u.closed, u.shownRanks, nil, nil
+    s.reveal, s.board = nil, nil
+    Prepare(s, s.qi)   -- the pre-sent next question is dropped; Close sends it again
+    Go(s, s.qi)
+    return true
+end
+
+-- Pause (ALL-66): in a question, its reveal or its board
+local PAUSABLE = { READING = true, ANSWERING = true, REVEAL = true, BOARD = true }
+
+-- The time the held state's clock had left, as players count it
+local function LeftNow(s)
+    if not s.hold then return 0 end
+    if s.state == "ANSWERING" then return math.max(0, s.deadline - s.hold.at - Scoring.LATE) end
+    return s.hold.left or 0
+end
+
+function Host.Pause()
+    local s = session
+    if not s or not PAUSABLE[s.state] or S.Held(s, "pause") or Blocked(s) == "locked" then return false end
+    S.Hold(s, "pause")
+    Comms.ToAudience(s, "PAUSE", { qid = s.qi })
+    KHF.SendMessage("QuizPaused", s)
+    return true
+end
+
+function Host.Resume()
+    local s = session
+    if not s or not S.Held(s, "pause") or Blocked(s) == "locked" then return false end
+    local left = LeftNow(s)
+    S.Release(s, "pause")
+    Comms.ToAudience(s, "RESUME", { qid = s.qi, left = Tenths(left) })
+    KHF.SendMessage("QuizPaused", s)
     return true
 end
 
 -- Read time "the host starts it": the click that opens the answers
 function Host.StartClock()
     local s = session
-    if not s or s.state ~= "READING" or s.opts.read >= 0 then return false end
+    if not s or s.state ~= "READING" or s.opts.read >= 0 or Blocked(s) == "locked" then return false end
+    if S.Held(s, "pause") then return false end
     Comms.ToAudience(s, "GO", { qid = s.qi, phase = 2 })
     OpenAnswers(s)
     return true
@@ -557,7 +716,7 @@ end
 
 function Host.Skip()
     local s = session
-    if not s or (s.state ~= "READING" and s.state ~= "ANSWERING") then return false end
+    if not s or (s.state ~= "READING" and s.state ~= "ANSWERING") or Blocked(s) == "locked" then return false end
     Close(s, true)
     return true
 end
@@ -565,10 +724,76 @@ end
 -- Results now; a question still running is dropped unscored
 function Host.End()
     local s = session
-    if not Running(s) or s.state == "STARTING" or s.state == "LOBBY" then return false end
+    if not Running(s) or s.state == "STARTING" or s.state == "LOBBY" or Blocked(s) == "locked" then return false end
     S.StopTimer(s)
     Final(s)
     return true
+end
+
+--------------------------------------------------------------------------------
+-- THE NETWORK (S10): lockdown, failed sends, the drained queue
+--------------------------------------------------------------------------------
+local ROUND = { STARTING = true, READING = true, ANSWERING = true, REVEAL = true, BOARD = true }
+
+-- What went out just before a lockdown may have been dropped with the queue:
+-- send it again (players drop what they already have)
+local function Resend(s)
+    if s.state == "STARTING" then
+        Comms.ToAudience(s, "START", s.out.START)
+        if s.out.Q then Comms.ToAudience(s, "Q", s.out.Q) end
+    elseif s.state == "REVEAL" or s.state == "BOARD" then
+        if s.out.REVEAL then Comms.ToAudience(s, "REVEAL", s.out.REVEAL) end
+        if s.out.BOARD then Comms.ToAudience(s, "BOARD", s.out.BOARD) end
+        if s.next and s.out.Q then Comms.ToAudience(s, "Q", s.out.Q) end
+    end
+    if S.Held(s, "pause") then Comms.ToAudience(s, "PAUSE", { qid = s.qi }) end
+end
+
+local function Lock(s)
+    if S.Held(s, "lock") then return end
+    if s.state == "READING" or s.state == "ANSWERING" then s.voidOwed = true end
+    S.Hold(s, "lock")
+    KHF:Print(L["HOST_LOCK_PAUSE"])
+    KHF.SendMessage("QuizPaused", s)
+end
+
+local function Unlock(s)
+    if not S.Held(s, "lock") then return end
+    if s.voidOwed then
+        Close(s, true)   -- void for everyone: the REVEAL ends any pause too
+    else
+        S.Release(s, "lock")
+        Resend(s)
+    end
+    KHF:Print(L["HOST_LOCK_OVER"])
+    KHF.SendMessage("QuizPaused", s)
+end
+
+function Host.OnLockdown(locked)
+    local s = session
+    if not Running(s) or s.loopback or not ROUND[s.state] then return end
+    if locked then Lock(s) else Unlock(s) end
+end
+
+function Host.OnSendFailed(sid, kind)
+    local s = session
+    if not Running(s) or s.id ~= sid or s.loopback then return end
+    if kind == "lockdown" then
+        if not ROUND[s.state] then return end   -- the lobby waits by itself
+        -- the lockdown may already be over (this comes a frame late)
+        if Channels.Locked() then Lock(s) elseif not S.Held(s, "lock") then Resend(s) end
+        return
+    end
+    KHF:Print(string.format(L["HOST_SEND_FAILED"], tostring(kind)))
+    Host.Cancel("sendfail")
+end
+
+function Host.OnQueueEmpty()
+    local s = session
+    if s and s.nextOwed then
+        s.nextOwed = nil
+        Host.Next()
+    end
 end
 
 function Host.Cancel(reason)
@@ -580,12 +805,14 @@ function Host.Cancel(reason)
         KHF.SendMessage("QuizEnded", s, reason or "cancelled")
     end
     S.StopTimer(s)
+    S.StopBeat(s)
     session = nil
 end
 
 function Host.Dismiss()
     if session and not Running(session) then
         S.StopTimer(session)
+        S.StopBeat(session)
         session = nil
     end
 end

@@ -80,6 +80,8 @@ end
 
 local function DrawList()
     local list = KHF.Lobbies.List()
+    -- a trial account cannot send addon messages: no joining (ALL-75)
+    local can = KHF.Channels.CanSend()
     for i = 1, math.max(#list, #rows) do
         local e = list[i]
         if e and i <= ROWS then
@@ -92,6 +94,7 @@ local function DrawList()
             r.info:SetText(string.format(L["PL_ROW"], ShortName(e.host), KHF.HostLobby.Info(e.count, e.read), joined))
             local same = e.proto == KHF.Protocol.VERSION
             r.join:SetShown(same)
+            r.join:SetEnabled(can)
             r.old:SetShown(not same)
             r:Show()
         elseif rows[i] then
@@ -99,6 +102,7 @@ local function DrawList()
             rows[i]:Hide()
         end
     end
+    if not can then status:SetText(L["COMMS_TRIAL"]) end
     if #list > 0 then
         empty:Hide()
     else

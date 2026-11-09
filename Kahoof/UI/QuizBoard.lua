@@ -82,6 +82,14 @@ end
 
 -- cols: four texts (nil = empty); ncols: how many columns are in use (the
 -- name gets the rest); mine: your own row, in Kahoof's color
+-- A row's name; the host who plays its own quiz is marked (ALL-74)
+local function RowName(s, slot)
+    local key = s.roster[slot]
+    local name = QuizUI.ShortName(key)
+    if key and key == s.host then name = name .. " " .. L["QW_HOST_MARK"] end
+    return name
+end
+
 local function Fill(r, rank, name, cols, ncols, mine, odd)
     local st = (rank and STYLE[rank]) or PLAIN
     r._rank = rank
@@ -244,7 +252,7 @@ function B:LayoutBoard(s, dt)
         local key = rk .. ":" .. shown[slot] .. ":" .. (i % 2) .. ":" .. plainH
         if r._key ~= key then
             r._key = key
-            Fill(r, rk, QuizUI.ShortName(s.roster[slot]), { nil, nil, Gain(rows[slot]), tostring(shown[slot]) },
+            Fill(r, rk, RowName(s, slot), { nil, nil, Gain(rows[slot]), tostring(shown[slot]) },
                  2, slot == s.slot, i % 2 == 1)
         end
         r:Show()
@@ -279,7 +287,7 @@ function B:LayoutBoard(s, dt)
 
     -- your own line when the top ten leaves you out
     if self.mineSpace and not mineIn and b.mine then
-        Fill(self.mineRow, ranks[s.slot], QuizUI.ShortName(s.roster[s.slot]),
+        Fill(self.mineRow, ranks[s.slot], RowName(s, s.slot),
              { nil, nil, Gain(b.mine), tostring(shown[s.slot] or b.mine.total) }, 2, true)
     else
         self.mineRow:Hide()
@@ -384,7 +392,7 @@ function B:DrawFinal(s)
     local rows = BySlot(f.rows)
     for i, slot in ipairs(f.order) do
         local r = rows[slot]
-        Fill(self:RowAt(i), f.ranks[slot], QuizUI.ShortName(s.roster[slot]), {
+        Fill(self:RowAt(i), f.ranks[slot], RowName(s, slot), {
             tostring(r.total),
             string.format(L["QW_OF"], r.correct, r.played),
             Accuracy(r),
