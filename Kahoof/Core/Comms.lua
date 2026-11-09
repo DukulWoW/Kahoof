@@ -23,9 +23,16 @@
 -- (KHF.SenderKey), our own broadcast echo dropped, parts put together (capped:
 -- MAX_PARTS per message, OPEN_PER_SENDER / OPEN_MAX open at once, dropped
 -- PART_TTL s after the last part came), then decoded like a loopback message.
--- A and VER count only as whispers. Arrivals go by type: A to the host
--- (Core/Host.lua), HI / VER to Core/VersionCheck.lua, everything else to the
--- player (Core/Player.lua); each checks the session id and the sender.
+-- A, VER and the lobby's whispers (JOIN, LEAVE, READY, DENY) count only as
+-- whispers. Arrivals go by type: A, WHO, JOIN, LEAVE, READY to the host
+-- (Core/Host.lua), HI / VER to Core/VersionCheck.lua, LOBBY to the lobby list
+-- (Core/Lobbies.lua; ROSTER, CANCEL and START go there too, for its player
+-- counts and closed lobbies), everything else to the player
+-- (Core/Player.lua); each checks the session id and the sender.
+--
+-- The host's mirror (S9): a network host watches its own quiz. With s.mirror
+-- every message to the audience is also handed to this client by the
+-- loopback (the network never brings our own broadcast back to us).
 --
 -- A whisper to an offline player is not refused (Success on Forever); the
 -- sign is the system line "No player named 'X' is currently playing." For a
@@ -60,9 +67,10 @@ local OPEN_PER_SENDER = 4     -- messages being put together from one sender
 local OPEN_MAX        = 40    -- ... from everyone
 local BOUNCE_TIME     = 5     -- seconds after a whisper that "No player named" is ours
 
-local HOST_BOUND    = { A = true }
+local HOST_BOUND    = { A = true, WHO = true, JOIN = true, LEAVE = true, READY = true }
 local VERSION_BOUND = { HI = true, VER = true }
-local WHISPER_ONLY  = { A = true, VER = true }
+local LOBBY_SEEN    = { ROSTER = true, CANCEL = true, START = true }   -- also to the lobby list
+local WHISPER_ONLY  = { A = true, VER = true, JOIN = true, LEAVE = true, READY = true, DENY = true }
 local REPLACE       = { IN = true }
 
 -- A value Midnight hands over as a secret cannot be compared: drop it
@@ -86,7 +94,10 @@ local function Route(msg)
         KHF.Host.OnMessage(msg)
     elseif VERSION_BOUND[msg.type] then
         KHF.VersionCheck.OnMessage(msg)
+    elseif msg.type == "LOBBY" then
+        KHF.Lobbies.OnMessage(msg)
     else
+        if LOBBY_SEEN[msg.type] and msg.channel then KHF.Lobbies.OnMessage(msg) end
         KHF.Player.OnMessage(msg)
     end
 end
@@ -286,7 +297,9 @@ local function SessionSend(s, dest, msgType, data)
         Loopback(Protocol.Encode(msgType, s.id, data), msgType, s.id)
         return true
     end
-    return Comms.SendTo(dest, msgType, s.id, data)
+    local ok, kind = Comms.SendTo(dest, msgType, s.id, data)
+    if ok and s.mirror and dest.audience then Loopback(Protocol.Encode(msgType, s.id, data), msgType, s.id) end
+    return ok, kind
 end
 
 function Comms.ToAudience(s, msgType, data) return SessionSend(s, { audience = s.audience }, msgType, data) end

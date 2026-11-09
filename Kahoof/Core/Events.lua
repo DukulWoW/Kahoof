@@ -74,7 +74,14 @@ end)
 --                                 nogroup, trial, throttle, toolong, an enum name);
 --                                 that session's queued messages are dropped
 --   WhisperBounced (key)          Core/Comms.lua: a whisper went to someone offline
--- Planned (architecture.md section 4, not sent yet): RosterChanged, LobbiesChanged
+-- The lobby (S9):
+--   LobbiesChanged ()             Core/Lobbies.lua: the open lobbies list changed
+--   LobbyOpened (entry)           Core/Lobbies.lua: a new lobby you can join (invite toast)
+--   RosterChanged (s)             Host: a join / leave / remove / ready mark / version
+--                                 reply; Player: a ROSTER, your ready answer
+--   ReadyCheck (s)                Core/Player.lua: the host asked "are you ready?"
+-- The player's QuizEnded reasons before START (S9): nohost, removed, full,
+-- started, closed, hostleft, nogroup.
 --------------------------------------------------------------------------------
 KHF.callbacks = LibStub("CallbackHandler-1.0"):New(KHF,
     "RegisterMessage", "UnregisterMessage", "UnregisterAllMessages")

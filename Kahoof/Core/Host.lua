@@ -1,4 +1,4 @@
--- Kahoof Core/Host.lua: the host side of a quiz (S5a: the question round; the lobby is S9)
+-- Kahoof Core/Host.lua: the host side of a quiz (S5a: the question round; S9: the lobby)
 --
 -- THE HOST IS THE AUTHORITY (game-engine.md). It owns the clock, the
 -- questions, the correct answer and every score. Players are told what to
@@ -19,7 +19,21 @@
 -- minus when answers opened here (networking.md, Known limits: the grace
 -- second absorbs most of the latency).
 --
---   Host.Start(quiz, opts, players, o) -> session | nil, msg
+-- The lobby (S9), before the round: OpenLobby sends LOBBY to the audience
+-- (again every LOBBY_EVERY s, and after a WHO), takes JOINs from players in
+-- the audience (Core/Roster.lua gives the slots), and sends the ROSTER at most
+-- every ROSTER_EVERY s, only while the send queue is empty. StartLobby sends
+-- START with the players numbered 1..n and the round runs as below. The
+-- lobby's one timer is a 1 s ticker (heartbeat, roster batch, ready check);
+-- it stops with the lobby. A network host also watches its own quiz: every
+-- message to the audience is handed to this client's player side too
+-- (s.mirror, Core/Comms.lua), so the quiz window shows the host what the
+-- players see, with the host bar (the host's own view is ALL-62).
+--
+--   Host.OpenLobby(quiz, opts, o) -> session | nil, msg     o: { audience }
+--   Host.StartLobby() -> true | nil, msg
+--   Host.Remove(key)  / Host.ReadyCheck()  -> true when done
+--   Host.Start(quiz, opts, players, o) -> session | nil, msg  (practice: no lobby)
 --        opts: read (0 / -1 / 2-10), board (1 / 5 / 0), shuffle, auto,
 --              pick ("all" = several correct answers: pick all of them, the
 --              default; "one" = any one of them counts; ALL-33)
@@ -30,7 +44,7 @@
 --   Host.Dismiss()                      drops a finished session
 --   Host.RecordAnswer(slot, qid, picks) one answer: a mask of shown positions
 --                                       (OnMessage; the dev bots, S6)
---   Host.OnMessage(msg)                 from Comms (A)
+--   Host.OnMessage(msg)                 from Comms (A, WHO, JOIN, LEAVE, READY)
 --   Host.Get()                          the hosted session or nil
 
 local _, KHF = ...
@@ -42,6 +56,10 @@ KHF.Host = Host
 
 Host.TICK     = 0.25   -- the ANSWERING ticker
 Host.IN_EVERY = 2      -- the IN bitmap at most this often (networking.md budget)
+Host.LOBBY_EVERY  = 60   -- LOBBY again while open (late log-ins; the lobby heartbeat)
+Host.ROSTER_EVERY = 2    -- ROSTER changes at most this often
+Host.WHO_EVERY    = 5    -- one LOBBY answers every WHO in this window
+Host.CHECK_TIME   = 30   -- a ready check lasts this long
 
 local READ_OK  = { [-1] = true, [0] = true }
 for t = 2, 10 do READ_OK[t] = true end
@@ -54,6 +72,7 @@ function Host.Get() return session end
 local function Running(s)
     return s and s.state ~= "FINAL" and s.state ~= "CANCELLED"
 end
+local function InLobby(s) return s and s.state == "LOBBY" end
 Host.IsRunning = function() return Running(session) and true or false end
 
 local function Tenths(t) return math.floor(t * 10 + 0.5) end
@@ -170,12 +189,22 @@ function Host.RecordAnswer(slot, qid, picks)
     return true
 end
 
+local OnLobbyMessage   -- below, with the lobby
+
 function Host.OnMessage(msg)
     local s = session
-    if not s or msg.sid ~= s.id then return end
+    if not Running(s) then return end
+    if msg.type == "WHO" then
+        -- a WHO has its own random id: answered while the lobby is open
+        if InLobby(s) and not s.loopback then s.lobby.whoOwed = true end
+        return
+    end
+    if msg.sid ~= s.id then return end
     if msg.type == "A" then
-        local slot = s.bySender[msg.sender]
+        local slot = s.bySender and s.bySender[msg.sender]
         if slot then Host.RecordAnswer(slot, msg.qid, msg.picks) end
+    elseif s.lobby then
+        OnLobbyMessage(s, msg)
     end
 end
 
@@ -283,24 +312,23 @@ end
 --------------------------------------------------------------------------------
 -- THE HOST'S BUTTONS
 --------------------------------------------------------------------------------
-function Host.Start(quiz, opts, players, o)
-    if Running(session) then return nil, L["ENG_ERR_RUNNING"] end
-    o, opts = o or {}, opts or {}
-    if type(quiz) ~= "table" or type(quiz.questions) ~= "table" or #quiz.questions == 0 then
-        return nil, L["QZ_ERR_NO_QUESTIONS"]
-    end
-    if #players == 0 or #players > KHF.Protocol.MAX_SLOTS then return nil, L["ENG_ERR_PLAYERS"] end
-    local s = S.New("host", o.id or KHF.Protocol.NewSessionId())
-    s.loopback = o.loopback and true or false
-    s.audience = (o.audience == "guild") and "guild" or "group"
-    s.quiz, s.count = quiz, #quiz.questions
-    s.opts = {
+local function CleanOpts(opts)
+    return {
         read = READ_OK[opts.read] and opts.read or 0,
         board = BOARD_OK[opts.board] and opts.board or 1,
         shuffle = opts.shuffle and true or false,
         auto = opts.auto and true or false,
         pick = (opts.pick == "one") and "one" or "all",
     }
+end
+
+local function QuizOk(quiz)
+    return type(quiz) == "table" and type(quiz.questions) == "table" and #quiz.questions > 0
+end
+
+-- The round begins: players = keys in slot order (slots 1..n), START with
+-- every one of them, the first question pre-sent, "Get ready"
+local function Begin(s, players)
     s.players, s.bySender = {}, {}
     local roster = {}
     for slot, key in ipairs(players) do
@@ -310,15 +338,203 @@ function Host.Start(quiz, opts, players, o)
         roster[slot] = { slot = slot, name = key }
     end
     s.qi, s.closed = 0, 0
-    session = s
-
-    Comms.ToAudience(s, "START", { title = quiz.title, count = s.count, read = s.opts.read,
+    Comms.ToAudience(s, "START", { title = s.quiz.title, count = s.count, read = s.opts.read,
                                    board = s.opts.board, shuffle = s.opts.shuffle and 1 or 0,
                                    mode = (s.opts.pick == "one") and 1 or 2, roster = roster })
     Prepare(s, 1)
     S.SetState(s, "STARTING", { after = S.START_DELAY, fn = function() Go(s, 1) end })
+end
+
+function Host.Start(quiz, opts, players, o)
+    if Running(session) then return nil, L["ENG_ERR_RUNNING"] end
+    o, opts = o or {}, opts or {}
+    if not QuizOk(quiz) then return nil, L["QZ_ERR_NO_QUESTIONS"] end
+    if #players == 0 or #players > KHF.Protocol.MAX_SLOTS then return nil, L["ENG_ERR_PLAYERS"] end
+    local s = S.New("host", o.id or KHF.Protocol.NewSessionId())
+    s.loopback = o.loopback and true or false
+    s.audience = (o.audience == "guild") and "guild" or "group"
+    s.quiz, s.count = quiz, #quiz.questions
+    s.opts = CleanOpts(opts)
+    session = s
+    Begin(s, players)
     return s
 end
+
+--------------------------------------------------------------------------------
+-- THE LOBBY (S9)
+--------------------------------------------------------------------------------
+local Roster, Channels = KHF.Roster, KHF.Channels
+
+-- Is this player in the session's audience? (a JOIN whispered by someone
+-- outside the group is not taken)
+local function InAudience(s, key)
+    if s.audience ~= "group" then return true end   -- guild lobbies: ALL-15
+    for _, k in ipairs(Channels.GroupKeys()) do
+        if k == key then return true end
+    end
+    return false
+end
+
+local function SendLobby(s)
+    local lb = s.lobby
+    lb.lastLobby, lb.whoOwed = S.Now(), false
+    Comms.ToAudience(s, "LOBBY", { title = s.quiz.title, count = s.count, read = s.opts.read, late = 0,
+                                   aud = (s.audience == "guild") and 2 or 1,
+                                   players = Roster.Count(lb.roster) })
+end
+
+local function RosterChanged(s)
+    KHF.SendMessage("RosterChanged", s)
+end
+
+-- "6 of 9 have Kahoof": the version ping, asked again after the group changed
+local function AskVersions(s)
+    local lb = s.lobby
+    local ok, why = KHF.VersionCheck.Ask(s.audience, function(replies)
+        if session ~= s or not s.lobby then return end
+        for key, info in pairs(replies) do lb.have[key] = info end
+        RosterChanged(s)
+    end)
+    lb.askOwed = (not ok) and why == "soon"
+end
+
+-- The lobby's one timer, every second while it is open. Nothing is sent
+-- while the game blocks addon messages: it all waits for the lockdown to end.
+local function LobbyTick(s)
+    local lb, now = s.lobby, S.Now()
+    if lb.checkUntil and now >= lb.checkUntil then
+        lb.checkUntil = nil
+        Roster.EndCheck(lb.roster)
+        RosterChanged(s)
+    end
+    if Channels.Locked() then return end
+    if Roster.Dirty(lb.roster) and now - lb.lastRoster >= Host.ROSTER_EVERY and Comms.Backlog() == 0 then
+        local full, rows = Roster.Flush(lb.roster)
+        lb.lastRoster = now
+        Comms.ToAudience(s, "ROSTER", { full = full, rows = rows })
+    end
+    if (lb.whoOwed and now - lb.lastLobby >= Host.WHO_EVERY) or now - lb.lastLobby >= Host.LOBBY_EVERY then
+        SendLobby(s)
+    end
+    if lb.askOwed then AskVersions(s) end
+end
+
+function Host.OpenLobby(quiz, opts, o)
+    if Running(session) then return nil, L["ENG_ERR_RUNNING"] end
+    o, opts = o or {}, opts or {}
+    if not QuizOk(quiz) then return nil, L["QZ_ERR_NO_QUESTIONS"] end
+    local audience = (o.audience == "guild") and "guild" or "group"
+    if not Channels.CanSend() then return nil, L["COMMS_TRIAL"] end
+    if not Channels.ForAudience(audience) then return nil, L["LB_ERR_NOGROUP"] end
+    if Channels.Locked() then return nil, L["COMMS_LOCKED"] end
+    if session then S.StopTimer(session) end
+    local s = S.New("host", o.id or KHF.Protocol.NewSessionId())
+    s.audience, s.loopback = audience, false
+    s.quiz, s.count = quiz, #quiz.questions
+    s.opts = CleanOpts(opts)
+    s.lobby = { roster = Roster.New(KHF.Protocol.MAX_SLOTS), have = {}, lastRoster = 0, lastLobby = 0 }
+    session = s
+    SendLobby(s)
+    S.SetState(s, "LOBBY", { every = 1, fn = LobbyTick })
+    AskVersions(s)
+    return s
+end
+
+function Host.StartLobby()
+    local s = session
+    if not InLobby(s) then return nil end
+    local players = Roster.Keys(s.lobby.roster)
+    if #players == 0 then return nil, L["LB_ERR_EMPTY"] end
+    if Channels.Locked() then return nil, L["COMMS_LOCKED"] end
+    Roster.EndCheck(s.lobby.roster)
+    s.lobby.checkUntil = nil
+    -- the host watches its own quiz (no slot, no answers): the player side
+    -- takes this START from the mirror
+    s.mirror = true
+    KHF.Player.Leave()
+    KHF.Player.Expect(s.id, KHF.UnitKey("player"), false, true)
+    Begin(s, players)
+    return true
+end
+
+-- Removed: told so, and never let back into this session
+function Host.Remove(key)
+    local s = session
+    if not InLobby(s) or not Roster.Slot(s.lobby.roster, key) then return false end
+    Roster.Remove(s.lobby.roster, key, true)
+    Comms.ToPlayer(s, key, "DENY", { reason = "removed" })
+    RosterChanged(s)
+    return true
+end
+
+function Host.ReadyCheck()
+    local s = session
+    if not InLobby(s) or s.lobby.checkUntil or Roster.Count(s.lobby.roster) == 0 then return false end
+    if Channels.Locked() then return false end
+    Roster.StartCheck(s.lobby.roster)
+    s.lobby.checkUntil = S.Now() + Host.CHECK_TIME
+    Comms.ToAudience(s, "CHECK", {})
+    RosterChanged(s)
+    return true
+end
+
+-- Lobby messages from players (A is the round's: Host.OnMessage)
+OnLobbyMessage = function(s, m)
+    local lb = s.lobby
+    if m.type == "JOIN" then
+        if not InLobby(s) then
+            -- late join is ALL-16: for now a started quiz says so
+            if not s.bySender[m.sender] then Comms.ToPlayer(s, m.sender, "DENY", { reason = "started" }) end
+            return
+        end
+        if not InAudience(s, m.sender) then return end
+        local slot, why = Roster.Add(lb.roster, m.sender)
+        if not slot then
+            Comms.ToPlayer(s, m.sender, "DENY", { reason = why })
+            return
+        end
+        lb.have[m.sender] = lb.have[m.sender] or { proto = m.proto }
+        RosterChanged(s)
+    elseif m.type == "LEAVE" then
+        if InLobby(s) then
+            if Roster.Remove(lb.roster, m.sender, false) then RosterChanged(s) end
+        else
+            local slot = s.bySender and s.bySender[m.sender]
+            if slot and s.players[slot] then s.players[slot].left = true end
+        end
+    elseif m.type == "READY" then
+        if InLobby(s) and Roster.SetReady(lb.roster, m.sender, m.ready == 1) then RosterChanged(s) end
+    end
+end
+
+-- The group changed: players who left it leave the lobby (or are marked
+-- "left" in a running quiz); a host who left the group closes the lobby
+local function OnGroupChanged()
+    local s = session
+    if not Running(s) or s.loopback or s.audience ~= "group" then return end
+    if not Channels.ForAudience("group") then
+        if InLobby(s) then Host.Cancel("closed") end
+        return
+    end
+    local inGroup = {}
+    for _, k in ipairs(Channels.GroupKeys()) do inGroup[k] = true end
+    if InLobby(s) then
+        local gone = false
+        for _, key in ipairs(Roster.Keys(s.lobby.roster)) do
+            if not inGroup[key] then
+                Roster.Remove(s.lobby.roster, key, false)
+                gone = true
+            end
+        end
+        s.lobby.askOwed = true
+        if gone then RosterChanged(s) end
+    else
+        for _, p in ipairs(s.players) do
+            if not inGroup[p.key] then p.left = true end
+        end
+    end
+end
+KHF.RegisterEvent("GROUP_ROSTER_UPDATE", OnGroupChanged)
 
 -- Next: in BOARD, or in REVEAL when no board follows
 function Host.Next()
@@ -349,7 +565,7 @@ end
 -- Results now; a question still running is dropped unscored
 function Host.End()
     local s = session
-    if not Running(s) or s.state == "STARTING" then return false end
+    if not Running(s) or s.state == "STARTING" or s.state == "LOBBY" then return false end
     S.StopTimer(s)
     Final(s)
     return true

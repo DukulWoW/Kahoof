@@ -5,7 +5,7 @@
 --
 -- Kahoof reads one table, Kahoof.Dev (nil without this addon):
 --   Dev.PracticePlayers(me) -> extra player keys for Practice (Core/Practice.lua)
---   Dev.PlayTabRow(page, anchor)  extra controls on the Play tab (UI/PlayTab.lua)
+--   Dev.PlayTabRow(page, anchor)  extra controls under Practice (the Host tab since S9: UI/HostTab.lua)
 --   Dev.CommsTap(info)            every game message in / out (Core/Comms.lua):
 --                                 the message log (Log.lua), the net test (NetTest.lua)
 --

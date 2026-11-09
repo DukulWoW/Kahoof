@@ -63,7 +63,13 @@ function QuizUI.ShortName(key)
     return KHF.EscapeText(key)
 end
 
-local function PS() return KHF.Player.Get() end
+-- The player's session once its quiz began (a lobby you wait in is the
+-- Play tab's, S9: s.prestart)
+local function PS()
+    local s = KHF.Player.Get()
+    if s and not s.prestart then return s end
+    return nil
+end
 
 -- The host session that belongs to the shown quiz (practice: the same id)
 local function HS(ps)
@@ -79,16 +85,17 @@ end
 --------------------------------------------------------------------------------
 -- LEAVING
 --------------------------------------------------------------------------------
--- Leave mid-quiz, or close a finished one. Practice: both sides go.
+-- Leave mid-quiz, or close a finished one. Practice, and a host watching
+-- its own quiz (S9): both sides go (the host's Stop cancels it for everyone).
 local function LeaveQuiz()
     local ps = PS()
-    if ps and ps.loopback then KHF.Practice.Stop() else KHF.Player.Leave() end
+    if ps and (ps.loopback or ps.watch) then KHF.Practice.Stop() else KHF.Player.Leave() end
     QuizUI.Refresh()
 end
 
 -- Stop practice mid-quiz: back to the main window (Dukul, 2026-11-02, ALL-48)
 local function StopOrLeave()
-    local practice = PS() and PS().loopback
+    local practice = PS() and (PS().loopback or PS().watch)
     LeaveQuiz()
     if practice then KHF.ShowMainWindow() end
 end
@@ -194,7 +201,7 @@ local QUESTION_UP = { READING = true, ANSWERING = true, REVEAL = true }
 
 local function UpdateBar(ps)
     local done = Done(ps)
-    bar.leave:SetText(ps.loopback and L["QW_STOP"] or L["QW_LEAVE"])
+    bar.leave:SetText((ps.loopback or ps.watch) and L["QW_STOP"] or L["QW_LEAVE"])
     bar.leave:SetShown(not done)
     bar.close:SetShown(done)
     bar.menu:SetShown(done)
@@ -271,14 +278,20 @@ local function OnKey(_, key)
     return false
 end
 
+-- answer-click.ogg on every answer, tick and send that is taken (S9, Dukul:
+-- "convert answer-click.mp3 to .ogg and add that too")
 function QuizUI.AnswerKey(n)
     local ps = PS()
-    return (play and ps and play:Pick(ps, n)) or false
+    local ok = (play and ps and play:Pick(ps, n)) or false
+    if ok then KHF.PlaySound("answer-click") end
+    return ok
 end
 
 function QuizUI.SendKey()
     local ps = PS()
-    return (play and ps and play:Send(ps)) or false
+    local ok = (play and ps and play:Send(ps)) or false
+    if ok then KHF.PlaySound("answer-click") end
+    return ok
 end
 
 -- Bindings.xml (they work in combat too: answering is no protected action)

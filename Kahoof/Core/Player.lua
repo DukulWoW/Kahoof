@@ -1,4 +1,4 @@
--- Kahoof Core/Player.lua: the player side of a quiz (S5a: the question round; joining is S9)
+-- Kahoof Core/Player.lua: the player side of a quiz (S5a: the question round; S9: joining)
 --
 -- The player draws what the host's last message said and sends one thing:
 -- its answer. It never decides whether an answer was right or what it scored
@@ -7,18 +7,30 @@
 -- host uses (networking.md: BOARD carries the numbers, each player ranks).
 --
 -- Every message must name this session's id and come from its host; START is
--- taken only when expected (Player.Expect: practice now, the joined lobby in
--- S9) and only when you are in its roster.
+-- taken only when expected (Player.Expect: practice, the lobby you joined, the
+-- host watching its own quiz) and only when you are in its roster (a watching
+-- host has no slot and cannot answer).
+--
+-- Joining (S9): Join whispers JOIN to the host; the session waits in JOINING
+-- until a ROSTER with you in it (JOINED), a DENY, or JOIN_WAIT s with no word
+-- from the host at all ("No answer from the host"; any ROSTER from the host
+-- restarts the wait, so a busy host's 40-player lobby does not time anyone
+-- out). In JOINED the session holds the lobby's list (s.list) and the ready
+-- check; START begins the round. Until START, s.prestart is true: the quiz
+-- window draws nothing for it.
 --
 -- The UI follows the message bus (Core/Events.lua): SessionState,
 -- QuestionShown, AnswerCount, Revealed, BoardUpdated, QuizEnded; the
 -- session table holds everything it draws (s.q, s.my, s.reveal, s.board,
 -- s.final, s.roster).
 --
---   Player.Expect(id, host, loopback)   take a START for this id from this host
+--   Player.Expect(id, host, loopback, watch)  take a START for this id from this
+--                                       host (watch = the host itself, no slot)
+--   Player.Join(lobby)                  -> true | nil, msg  (a Core/Lobbies.lua entry)
+--   Player.Ready(on)                    the answer to the host's ready check
 --   Player.Answer(picks)                -> true when sent; picks = one position
 --                                       or a list of them (q.pick at most)
---   Player.Leave()                      drop the session
+--   Player.Leave()                      drop the session (the host is told: LEAVE)
 --   Player.OnMessage(msg)               from Comms
 --   Player.Get()
 
@@ -33,13 +45,30 @@ local expect    -- { id, host, loopback }: the START we wait for
 
 function Player.Get() return session end
 
-function Player.Expect(id, host, loopback)
-    expect = { id = id, host = host, loopback = loopback and true or false }
+Player.JOIN_WAIT = 5   -- seconds without a word from the host: "No answer"
+
+function Player.Expect(id, host, loopback, watch)
+    expect = { id = id, host = host, loopback = loopback and true or false, watch = watch and true or false }
+end
+
+local function Live(s)
+    return s and s.state ~= "FINAL" and s.state ~= "ENDED"
 end
 
 function Player.Leave()
-    if session then S.StopTimer(session) end
+    local s = session
+    if Live(s) and not s.loopback and not s.watch and s.host ~= KHF.UnitKey("player") then
+        Comms.ToHost(s, "LEAVE", {})
+    end
+    if s then S.StopTimer(s) end
     session, expect = nil, nil
+end
+
+-- The quiz (or the lobby) is over for this player, with a reason code
+local function End(s, reason)
+    s.endReason = reason
+    S.SetState(s, "ENDED")
+    KHF.SendMessage("QuizEnded", s, reason)
 end
 
 --------------------------------------------------------------------------------
@@ -56,7 +85,7 @@ end
 
 function Player.Answer(picks)
     local s = session
-    if not s or s.state ~= "ANSWERING" or not s.q or s.my then return false end
+    if not s or s.watch or s.state ~= "ANSWERING" or not s.q or s.my then return false end
     if type(picks) == "number" then picks = { picks } end
     if type(picks) ~= "table" then return false end
     local mask = KHF.Protocol.Mask(picks)
@@ -198,10 +227,11 @@ local function OnStart(m)
             if r.name == me then mySlot = r.slot end
         end
     end
-    if not mySlot or m.count < 1 then return end
+    if (not mySlot and not expect.watch) or m.count < 1 then return end
     if session then S.StopTimer(session) end
     local s = S.New("player", m.sid)
-    s.host, s.loopback = m.sender, expect.loopback
+    s.host, s.loopback, s.watch = m.sender, expect.loopback, expect.watch
+    s.started = true
     s.title, s.count, s.read, s.boardEvery, s.shuffle = m.title, m.count, m.read, m.board, m.shuffle == 1
     s.pickAll = m.mode ~= 1
     s.roster, s.rosterSize, s.slot = roster, n, mySlot
@@ -210,11 +240,90 @@ local function OnStart(m)
     S.SetState(s, "STARTING")
 end
 
+--------------------------------------------------------------------------------
+-- THE LOBBY (S9)
+--------------------------------------------------------------------------------
+local function WaitForHost(s)
+    S.SetState(s, "JOINING", { after = Player.JOIN_WAIT, fn = function() End(s, "nohost") end })
+end
+
+function Player.Join(lobby)
+    local L = KHF.L
+    if type(lobby) ~= "table" or not lobby.sid or not lobby.host then return nil end
+    if KHF.Host.IsRunning() then return nil, L["ENG_ERR_RUNNING"] end
+    if Live(session) and session.started then return nil, L["ENG_ERR_RUNNING"] end
+    if lobby.proto ~= KHF.Protocol.VERSION then return nil, L["LB_ERR_VERSION"] end
+    if not KHF.Channels.CanSend() then return nil, L["COMMS_TRIAL"] end
+    if KHF.Channels.Locked() then return nil, L["COMMS_LOCKED"] end
+    Player.Leave()   -- one session at a time: the lobby you were in is left
+    local s = S.New("player", lobby.sid)
+    s.host, s.prestart = lobby.host, true
+    s.title, s.count, s.read, s.aud = lobby.title, lobby.count, lobby.read, lobby.aud
+    session = s
+    Player.Expect(lobby.sid, lobby.host, false)
+    Comms.ToHost(s, "JOIN", {})
+    WaitForHost(s)
+    return true
+end
+
+function Player.Ready(on)
+    local s = session
+    if not s or s.state ~= "JOINED" or not s.check then return false end
+    s.check.answer = on and true or false
+    Comms.ToHost(s, "READY", { ready = on and 1 or 0 })
+    KHF.SendMessage("RosterChanged", s)
+    return true
+end
+
+-- Messages while you wait in a lobby
+local LH = {}
+
+function LH.ROSTER(s, m)
+    local list = KHF.Roster.Apply(s.list, m.full, m.rows)
+    if not list then return end
+    s.list = list
+    local me, mySlot = KHF.UnitKey("player"), nil
+    for slot, p in pairs(list) do
+        if p.name == me then mySlot = slot end
+    end
+    if mySlot then
+        s.lobbySlot = mySlot
+        if s.state == "JOINING" then S.SetState(s, "JOINED") end
+    elseif s.state == "JOINED" then
+        return End(s, "removed")   -- out of the list with no DENY: it was lost
+    elseif s.state == "JOINING" then
+        WaitForHost(s)   -- the host is there and busy: wait on
+    end
+    KHF.SendMessage("RosterChanged", s)
+end
+
+function LH.DENY(s, m) End(s, m.reason) end
+function LH.CANCEL(s, m) End(s, m.reason) end
+
+function LH.CHECK(s)
+    if s.state ~= "JOINED" then return end
+    s.check = { at = S.Now() }
+    KHF.SendMessage("ReadyCheck", s)
+end
+
 function Player.OnMessage(m)
     if m.type == "START" then return OnStart(m) end
     local s = session
     if not s or m.sid ~= s.id or m.sender ~= s.host then return end
-    if s.state == "FINAL" or s.state == "ENDED" then return end
-    local h = H[m.type]
+    if not Live(s) then return end
+    local h = (s.prestart and LH or H)[m.type]
     if h then h(s, m) end
 end
+
+-- The group changed: a host who left it ends the quiz (or the lobby) for you
+-- (game-engine.md: "The host leaving the group ends the quiz for everyone")
+local function OnGroupChanged()
+    local s = session
+    if not Live(s) or s.loopback or s.watch or s.aud == 2 then return end
+    if not KHF.Channels.ForAudience("group") then return End(s, "nogroup") end
+    for _, k in ipairs(KHF.Channels.GroupKeys()) do
+        if k == s.host then return end
+    end
+    End(s, "hostleft")
+end
+KHF.RegisterEvent("GROUP_ROSTER_UPDATE", OnGroupChanged)

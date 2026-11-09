@@ -19,11 +19,14 @@ local _, KHF = ...
 local Session = {}
 KHF.Session = Session
 
--- Host:   STARTING -> [ READING -> ANSWERING -> REVEAL -> (BOARD) ] x N -> FINAL
--- Player: STARTING -> [ READING -> ANSWERING -> (ANSWERED) -> CLOSED -> REVEAL -> (BOARD) ] x N -> FINAL
+-- Host:   (LOBBY ->) STARTING -> [ READING -> ANSWERING -> REVEAL -> (BOARD) ] x N -> FINAL
+-- Player: (JOINING -> JOINED ->) STARTING -> [ READING -> ANSWERING -> (ANSWERED) -> CLOSED
+--         -> REVEAL -> (BOARD) ] x N -> FINAL
 -- Both:   -> CANCELLED (host) / ENDED (player) from any state.
--- (LOBBY on the host and BROWSING / JOINED on the player come with the lobby, S9.)
+-- LOBBY / JOINING / JOINED: the lobby (S9); practice starts at STARTING.
+-- Browsing the open lobbies is no session (Core/Lobbies.lua).
 Session.STATES = {
+    LOBBY = true, JOINING = true, JOINED = true,
     STARTING = true, READING = true, ANSWERING = true, ANSWERED = true, CLOSED = true,
     REVEAL = true, BOARD = true, FINAL = true, CANCELLED = true, ENDED = true,
 }

@@ -21,6 +21,7 @@ L["SLIDER_DEFAULT"]     = "(Default: %s)"                                   -- %
 
 -- Main window tabs
 L["TAB_PLAY"]           = "Play"
+L["TAB_HOST"]           = "Host"
 L["TAB_QUIZZES"]        = "My Quizzes"
 L["TAB_HISTORY"]        = "History"
 L["TAB_SETTINGS"]       = "Settings"
@@ -189,9 +190,12 @@ L["BIND_ANSWER_3"]       = "Answer Diamond (3)"
 L["BIND_ANSWER_4"]       = "Answer Triangle (4)"
 L["BIND_SEND"]           = "Send ticked answers"
 
--- The Play tab (UI/PlayTab.lua)
-L["PT_HEAD"]             = "Practice a quiz"
-L["PT_INTRO"]            = "Play a quiz on your own: the whole game, with you as the only player."
+-- The Host tab (UI/HostTab.lua; the PT_ keys are its start options, from the S5b Play tab)
+L["HT_HEAD"]             = "Host a quiz"
+L["HT_INTRO"]            = "Open a lobby for your party or raid, or practice the quiz on your own."
+L["HT_OPEN"]             = "Open lobby"
+L["HT_OPEN_TIP"]         = "Your party or raid sees the lobby and can join it. You run the quiz and do not play it."
+L["HT_GUILD_LATER"]      = "Lobbies for your guild come in a later version."
 L["PT_QUIZ"]             = "Quiz"
 L["PT_READ"]             = "Read time"
 L["PT_READ_NONE"]        = "None: answers at once"
@@ -210,7 +214,65 @@ L["PT_AUTO"]             = "Next by itself"
 L["PT_AUTO_TIP"]         = "Go on to the next question a few seconds after the reveal or leaderboard, without a click."
 L["PT_PRACTICE"]         = "Practice"
 L["PT_PRACTICE_TIP"]     = "Play this quiz alone, with these options. Nothing is sent to anyone."
-L["PT_HOST_LATER"]       = "Hosting a quiz for your group or guild comes in a later version."
+
+-- The lobby (S9): the host's page (UI/HostLobby.lua), the Play tab (UI/PlayTab.lua), the toast (UI/Toast.lua)
+L["LB_INFO"]             = "%s, read time %s."                              -- %s = question count, read time
+L["LB_ERR_NOGROUP"]      = "Join a party or raid first: a lobby is open to your group."
+L["LB_ERR_EMPTY"]        = "No one has joined yet."
+L["LB_ERR_VERSION"]      = "This lobby is from another version of {name}. You both need the same version."
+L["LB_READY"]            = "Ready"
+L["LB_NOT_READY"]        = "Not ready"
+L["LB_NO_ANSWER"]        = "No answer yet"
+L["LB_END_nohost"]       = "No answer from the host."
+L["LB_END_removed"]      = "The host removed you from the lobby."
+L["LB_END_full"]         = "The lobby is full."
+L["LB_END_started"]      = "That quiz has already started."
+L["LB_END_closed"]       = "The host closed the lobby."
+L["LB_END_hostleft"]     = "The host left your group."
+L["LB_END_nogroup"]      = "You left the group."
+L["LB_END_stopped"]      = "The host stopped the quiz."
+L["LB_END_cancelled"]    = "The quiz was cancelled."
+L["HL_HEAD"]             = "Lobby: %s"                                      -- %s = quiz title
+L["HL_HAVE"]             = "%d of %d in your group have {name}"            -- %d = with it, group size
+L["HL_HAVE_ALL"]         = "Everyone in your group has it."
+L["HL_WITHOUT"]          = "Without {name} (or not answering):"
+L["HL_PLAYERS"]          = "Players: %d"                                    -- %d = players
+L["HL_EMPTY"]            = "Waiting for players to join..."
+L["HL_REMOVE"]           = "Remove %s"                                      -- %s = name
+L["HL_REMOVE_TIP"]       = "They are taken out of the lobby and cannot join it again."
+L["HL_START"]            = "Start"
+L["HL_START_TIP"]        = "Start the quiz for everyone in the lobby."
+L["HL_CHECK"]            = "Ready check"
+L["HL_CHECK_TIP"]        = "Ask everyone in the lobby if they are ready. You can start anyway."
+L["HL_CHECKING"]         = "Checking..."
+L["HL_CLOSE"]            = "Close lobby"
+L["HL_CLOSE_TIP"]        = "Close the lobby. Everyone in it is told."
+L["HL_RUNNING"]          = "Your quiz is running."
+L["HL_SHOW"]             = "Show quiz"
+L["PL_HEAD"]             = "Join a quiz"
+L["PL_INTRO"]            = "Quizzes open in your party or raid. To run one yourself, use the Host tab."
+L["PL_NONE"]             = "No quiz is open in your group right now."
+L["PL_NOGROUP"]          = "You are not in a group. Join a party or raid to see its quizzes."
+L["PL_LOOK"]             = "Look again"
+L["PL_LOOK_TIP"]         = "Ask your group for open lobbies."
+L["PL_ROW"]              = "Hosted by %s. %s %s"                            -- %s = host, info line, joined count
+L["PL_JOINED_ONE"]       = "1 joined."
+L["PL_JOINED_N"]         = "%d joined."                                     -- %d = players
+L["PL_JOIN"]             = "Join"
+L["PL_OLD"]              = "Needs an update"
+L["PL_MINE_INFO"]        = "Hosted by %s. %s"                               -- %s = host, info line
+L["PL_JOINING"]          = "Joining %s's lobby..."                          -- %s = host
+L["PL_WAITING"]          = "You are in. Waiting for %s to start the quiz."  -- %s = host
+L["PL_READY_Q"]          = "%s asks: are you ready?"                        -- %s = host
+L["PL_READY"]            = "Ready"
+L["PL_NOT_READY"]        = "Not ready"
+L["PL_SAID_READY"]       = "You said you are ready."
+L["PL_SAID_NOT_READY"]   = "You said you are not ready."
+L["PL_LEAVE"]            = "Leave"
+L["PL_LEAVE_TIP"]        = "Leave the lobby. You can join again while it is open."
+L["TOAST_LOBBY"]         = "%s opened a quiz:\n%s"                         -- %s = host, quiz title
+L["TOAST_JOIN"]          = "Join"
+L["TOAST_LATER"]         = "Not now"
 
 -- The quiz window (UI/QuizWindow.lua, UI/QuizPlay.lua, UI/QuizBoard.lua)
 L["QW_LEAVE"]            = "Leave quiz"

@@ -1,5 +1,6 @@
 -- Kahoof UI/MainWindow.lua: the main window
--- Tabs Play / My Quizzes / History / Settings. My Quizzes is UI/QuizzesTab.lua
+-- Tabs Play / Host / My Quizzes / History / Settings (Host: ALL-72, S9).
+-- Play is UI/PlayTab.lua, Host UI/HostTab.lua, My Quizzes is UI/QuizzesTab.lua
 -- (S3); the others are empty pages for now, filled in by later sessions
 -- (architecture.md section 9). Resizable, its place and size saved
 -- (KahoofDB.windows.main).
@@ -17,7 +18,16 @@ local DEF_W, DEF_H = 720, 540
 local MIN_W, MIN_H = 560, 516   -- 516: the quiz editor's question pane fits (S4, ALL-41)
 local LOGO = KHF.ADDON_PATH .. "Assets\\logo"
 
-local TABS = { "TAB_PLAY", "TAB_QUIZZES", "TAB_HISTORY", "TAB_SETTINGS" }
+local TABS = { "TAB_PLAY", "TAB_HOST", "TAB_QUIZZES", "TAB_HISTORY", "TAB_SETTINGS" }
+
+-- The last tab is saved by its key (mainTabKey), so a tab added later never
+-- shifts which page opens
+local function TabIndex(key)
+    for i, k in ipairs(TABS) do
+        if k == key then return i end
+    end
+    return nil
+end
 
 local mw   -- the window, built on first open
 
@@ -59,8 +69,7 @@ end
 local TABS_TOP = 28                             -- tab row top, under the title band
 
 local function PageEsc()
-    local idx = KHF.GetSetting("mainTab")
-    local h = TABS[idx] and KHF.PageEscHandlers[TABS[idx]]
+    local h = KHF.PageEscHandlers[KHF.GetSetting("mainTabKey")]
     return h and h() or false
 end
 
@@ -70,7 +79,7 @@ local function SelectTab(idx)
         if i == idx then PanelTemplates_SelectTab(tab) else PanelTemplates_DeselectTab(tab) end
         mw._pages[i]:SetShown(i == idx)
     end
-    KHF.SetSetting("mainTab", idx)
+    KHF.SetSetting("mainTabKey", TABS[idx])
 end
 
 --------------------------------------------------------------------------------
@@ -181,9 +190,7 @@ local function Build()
     LayoutHeader()
     BuildLock()
     ApplyLock()
-    local idx = KHF.GetSetting("mainTab")
-    if type(idx) ~= "number" or not TABS[idx] then idx = 1 end
-    SelectTab(idx)
+    SelectTab(TabIndex(KHF.GetSetting("mainTabKey")) or 1)
 end
 
 -- tab, optional: a tab key ("TAB_SETTINGS") to show it on

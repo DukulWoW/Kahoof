@@ -34,8 +34,8 @@ local MAX_TEXT  = 200   -- characters in one text field (the longest quiz field)
 local NONE      = {}    -- Dec's "optional field left empty"
 
 --------------------------------------------------------------------------------
--- THE MESSAGES (the ones the game round needs; LOBBY, JOIN, ROSTER etc. come
--- with the lobby, S9). Field kinds: n = whole number, o = whole number or
+-- THE MESSAGES (the game round, S5a; the version ping, S8; the lobby, S9).
+-- Field kinds: n = whole number, o = whole number or
 -- empty, t = text. rest = the fields repeated to the end of the message,
 -- gathered under restKey (a list of values when rest has one field, a list of
 -- tables otherwise), restMin..restMax times.
@@ -64,10 +64,25 @@ local NONE      = {}    -- Dec's "optional field left empty"
 --   CANCEL  reason code
 --   HI      ver (my addon version): "who has Kahoof?"         anyone -> audience
 --   VER     ver: the answer to a HI, same id                  whisper to the asker
--- HI and VER are read from EVERY protocol version (ANY_VERSION), so an old
--- client still answers a new one's version check and shows as "needs an
--- update". Their fields never change; a later version may only add fields at
--- the end, and an older client ignores them (open = true).
+-- The lobby (S9):
+--   LOBBY   title, question count, read time, late join (0 / 1), audience
+--           (1 group, 2 guild), players: "a lobby is open"   host -> audience
+--           (on open, every 60 s, after a WHO; also its heartbeat)
+--   WHO     (no fields; a fresh random id): "any lobbies?"   player -> audience
+--   JOIN    (no fields)                                       whisper to the host
+--   LEAVE   (no fields)                                       whisper to the host
+--   DENY    reason (full, removed, started, closed)           host -> one player
+--   ROSTER  full (1 = the whole list, 0 = changes); rows: slot, name (empty =
+--           that slot is free now), ready (empty = no check, 0 not ready,
+--           1 ready, 2 asked, no answer yet) ...             host -> audience
+--           It is the join accept: your name in it = you are in.
+--   CHECK   (no fields): the ready check starts               host -> audience
+--   READY   ready (0 / 1): the answer to a CHECK              whisper to the host
+-- HI, VER and LOBBY are read from EVERY protocol version (ANY_VERSION), so an
+-- old client still answers a new one's version check and shows as "needs an
+-- update", and a lobby from another version is listed as one you cannot join.
+-- Their fields never change; a later version may only add fields at the end,
+-- and an older client ignores them (open = true).
 --------------------------------------------------------------------------------
 local TYPES = {
     START  = { fields = { "title:t", "count:n", "read:n", "board:n", "shuffle:n", "mode:n" },
@@ -88,8 +103,17 @@ local TYPES = {
     CANCEL = { fields = { "reason:t" } },
     HI     = { fields = { "ver:t" }, open = true },
     VER    = { fields = { "ver:t" }, open = true },
+    LOBBY  = { fields = { "title:t", "count:n", "read:n", "late:n", "aud:n", "players:n" }, open = true },
+    WHO    = { fields = {} },
+    JOIN   = { fields = {} },
+    LEAVE  = { fields = {} },
+    DENY   = { fields = { "reason:t" } },
+    ROSTER = { fields = { "full:n" },
+               rest = { "slot:n", "name:t", "ready:o" }, restKey = "rows", restMin = 0, restMax = 40 },
+    CHECK  = { fields = {} },
+    READY  = { fields = { "ready:n" } },
 }
-local ANY_VERSION = { HI = true, VER = true }
+local ANY_VERSION = { HI = true, VER = true, LOBBY = true }
 Protocol.TYPES = TYPES
 
 -- "name:kind" -> name, kind (split once, at load)
@@ -161,7 +185,8 @@ function Protocol.Encode(msgType, sid, data)
 end
 
 -- msg.proto = the sender's protocol version. Another version than ours is
--- refused (nil, "version", its number: S9 shows "needs update"), except HI / VER.
+-- refused (nil, "version", its number), except HI / VER / LOBBY (the lobby
+-- list shows another version's lobby as "needs an update").
 function Protocol.Decode(str)
     if type(str) ~= "string" then return nil, "not text" end
     local f = Split(str)

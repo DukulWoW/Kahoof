@@ -27,12 +27,13 @@ KHF.DEFAULTS = {
         quizButton = {},   -- the "Quiz running" button (S5b); empty = top center
     },
     mainLocked = false,   -- the main window's size locked (the lock button, ALL-39)
-    mainTab = 1,   -- the main window's last tab (1 Play, 2 My Quizzes, 3 History, 4 Settings)
+    mainTabKey = "TAB_PLAY",   -- the main window's last tab, by key (S9: mainTab, an index, is no longer read)
     readTime = 5,         -- the read time a quiz starts with: 0 none, -1 the host starts it, 2-10 s (data.md)
     autoAdvance = false,  -- Next by itself after the reveal / leaderboard (data.md)
     newQuizTime = 20,   -- the time limit a new quiz starts with (10 / 20 / 30 / 45 / 60 s; data.md)
     quizScale = 1,        -- the quiz window's scale (the slider comes with the Settings tab)
     answerKeys = true,    -- 1-4 tick / answer and Space sends while a question shows, out of combat (S5b)
+    toastGroup = true,    -- the invite toast when a lobby opens in your group (S9; its switch: ALL-23)
     boardFull = false,    -- the leaderboard: false = top ten + your line, true = everyone
     minimapIcon = { hide = false, minimapPos = 200 },   -- LibDBIcon's own table (shown by default)
 }

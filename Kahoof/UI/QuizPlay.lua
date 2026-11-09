@@ -291,8 +291,10 @@ function P:DrawAnswers(s)
         local a = q.answers[i]
         if a then
             FitText(b.text, KHF.EscapeText(a), A_FONTS, b:GetHeight() - A_TEXT_PAD)
-            b.key:SetText((st == "ANSWERING" and not s.my) and KeyText(i) or "")
-            b:SetEnabled(st == "ANSWERING" and not s.my)
+            -- a watching host (S9) sees the answers but cannot pick one
+            local can = st == "ANSWERING" and not s.my and not s.watch
+            b.key:SetText(can and KeyText(i) or "")
+            b:SetEnabled(can)
             b.count:SetText("")
             if r then
                 local n = r.counts[i] or 0
@@ -359,7 +361,8 @@ function P:Draw(s)
         self.head:SetText("")
         SetQuestionText(self.qtext, L["QW_ENDED"])
         self:Flow(false)
-        self.status:SetText(L["QW_ENDED_HOST"])
+        -- why it ended, when the reason has a line (host left, ...; S9)
+        self.status:SetText(KHF.HostLobby.EndLine(s.endReason) or L["QW_ENDED_HOST"])
         return
     end
 
@@ -428,7 +431,7 @@ end
 --------------------------------------------------------------------------------
 function P:Pick(s, n)
     local q = s.q
-    if s.state ~= "ANSWERING" or not q or s.my or not q.answers[n] then return false end
+    if s.watch or s.state ~= "ANSWERING" or not q or s.my or not q.answers[n] then return false end
     if q.pick == 1 then return KHF.Player.Answer(n) end
     SyncTicks(s)
     if ticks[n] then
@@ -442,7 +445,7 @@ end
 
 function P:Send(s)
     local q = s.q
-    if s.state ~= "ANSWERING" or not q or s.my or q.pick == 1 then return false end
+    if s.watch or s.state ~= "ANSWERING" or not q or s.my or q.pick == 1 then return false end
     SyncTicks(s)
     local list = {}
     for i = 1, #q.answers do

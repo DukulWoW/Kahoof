@@ -30,8 +30,10 @@ Core\Protocol.lua
 Core\Channels.lua
 Core\Comms.lua
 Core\Session.lua
+Core\Roster.lua
 Core\Host.lua
 Core\Player.lua
+Core\Lobbies.lua
 Core\Practice.lua
 Core\VersionCheck.lua
 
@@ -49,6 +51,9 @@ UI\QuizWindow.lua
 UI\QuizCountdown.lua
 UI\QuizPlay.lua
 UI\QuizBoard.lua
+UI\HostTab.lua
+UI\HostLobby.lua
 UI\PlayTab.lua
+UI\Toast.lua
 UI\OptionsPanel.lua
 UI\Launchers.lua

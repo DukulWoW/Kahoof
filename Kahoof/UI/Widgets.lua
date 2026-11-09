@@ -329,6 +329,16 @@ function KHF.CreateButton(parent, text, w, h)
     return KHF.Theme.CreateTextButton(parent, text, w, h)
 end
 
+--------------------------------------------------------------------------------
+-- SOUNDS: our own files in Assets/Sounds, .ogg, on the Master channel (S9;
+-- ALL-20 brings the switches). name = the file name without ".ogg". Dukul
+-- swaps a file by replacing it under the same name.
+--------------------------------------------------------------------------------
+local SOUNDS = KHF.ADDON_PATH .. "Assets\\Sounds\\"
+function KHF.PlaySound(name)
+    pcall(PlaySoundFile, SOUNDS .. name .. ".ogg", "Master")
+end
+
 -- A plain tooltip: a title (text, or a function(frame) that returns it) and
 -- an optional wrapped line under it. Hooks OnEnter / OnLeave, so a template's
 -- own hover scripts (dropdowns, check boxes) keep working; call it once per frame.

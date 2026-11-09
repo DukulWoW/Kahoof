@@ -1,209 +1,241 @@
--- Kahoof UI/PlayTab.lua: the Play tab of the main window (S5b)
--- Where a quiz is started (Dukul, 2026-11-02: "Play tab"): the quiz, the
--- start options and Practice. S9 adds "Open lobby" beside Practice and the
--- open lobbies above it; the options are the same for both.
---
--- Start options (game-engine.md): read time (none / 2-10 s / you start the
--- clock), leaderboard timing (every question / every 5 / only at the end),
--- several correct answers (pick all / any one counts), randomize answers
--- (starts as the quiz's own setting, ALL-40) and auto-advance. The read time
--- and auto-advance begin at their Settings defaults; the choices stay for
--- the session.
+-- Kahoof UI/PlayTab.lua: the Play tab of the main window (S9)
+-- Where you join a quiz (ALL-72, Dukul, 2026-11-04: "Play is for when you
+-- want to play a game"). Two views:
+--   the list   the lobbies open in your group (Core/Lobbies.lua), one row each
+--              with Join, or "Needs an update" for another version's lobby;
+--              an empty line pointing to the Host tab; Look again (WHO).
+--   your lobby while you join or wait in one (the player session before
+--              START: Core/Player.lua): the quiz, the host, every player with
+--              their ready mark (Dukul, 2026-11-09: "Every name"), the ready
+--              check's Ready / Not ready, Leave.
+-- A lobby that ended for you (removed, closed, no answer) leaves one red line
+-- above the list. Opening the tab asks the group for lobbies (at most every
+-- 10 s). Rows are pooled; their scripts read row._host.
 
 local _, KHF = ...
 local L = KHF.L
-local QuizStore = KHF.QuizStore
 
-local LABEL_X, CTRL_X = 10, 200
-local ROW_Y0, ROW_STEP = -80, 36
+local PAD, ROW_H, ROWS = 10, 46, 6
 
-local page, quizDD, readDD, boardDD, pickDD, shuffleCB, autoCB, startBtn, err
-local sel      -- the chosen quiz id
-local opts     -- the start options as chosen
+local page, head, intro, status, lookBtn, empty
+local rows = {}
+local mine, mTitle, mInfo, mState, mCount, mGrid, readyBtn, notReadyBtn, leaveBtn
 
-local READ_CHOICES = { 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, -1 }
-local BOARD_CHOICES = { { 1, "PT_BOARD_EACH" }, { 5, "PT_BOARD_FIVE" }, { 0, "PT_BOARD_END" } }
-local PICK_CHOICES = { { "all", "PT_PICK_ALL" }, { "one", "PT_PICK_ONE" } }
-
-local function ReadLabel(t)
-    if t == 0 then return L["PT_READ_NONE"] end
-    if t < 0 then return L["PT_READ_MANUAL"] end
-    return string.format(L["PT_SECONDS"], t)
+local function ShortName(key)
+    return KHF.EscapeText(KHF.QuizUI.ShortName(key))
 end
 
-local function Options()
-    if not opts then
-        opts = { read = KHF.GetSetting("readTime"), board = 1, pick = "all",
-                 shuffle = false, auto = KHF.GetSetting("autoAdvance") and true or false }
+-- The player session while it is a lobby (JOINING / JOINED), or an ended one
+local function Joined()
+    local s = KHF.Player.Get()
+    if s and s.prestart then return s end
+    return nil
+end
+
+local function EndLine(s)
+    return KHF.HostLobby.EndLine(s.endReason) or L["QW_ENDED"]
+end
+
+--------------------------------------------------------------------------------
+-- THE LIST
+--------------------------------------------------------------------------------
+local function OnJoin(self)
+    local e = KHF.Lobbies.Get(self:GetParent()._host)
+    if not e then return end
+    local ok, msg = KHF.Player.Join(e)
+    status:SetText(ok and "" or (msg or ""))
+end
+
+local function NewRow(i)
+    local r = CreateFrame("Frame", nil, page)
+    r:SetHeight(ROW_H)
+    r:SetPoint("TOPLEFT", page, "TOPLEFT", PAD, -90 - (i - 1) * (ROW_H + 4))
+    r:SetPoint("RIGHT", page, "RIGHT", -PAD, 0)
+    local bg = r:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0, 0, 0, 0.25)
+    r.title = r:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    r.title:SetPoint("TOPLEFT", r, "TOPLEFT", 8, -6)
+    r.title:SetPoint("RIGHT", r, "RIGHT", -140, 0)
+    r.title:SetJustifyH("LEFT")
+    r.title:SetWordWrap(false)
+    r.info = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.info:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -4)
+    r.info:SetPoint("RIGHT", r, "RIGHT", -140, 0)
+    r.info:SetJustifyH("LEFT")
+    r.info:SetWordWrap(false)
+    r.join = KHF.CreateButton(r, L["PL_JOIN"], 110, 26)
+    r.join:SetPoint("RIGHT", r, "RIGHT", -8, 0)
+    r.join:SetScript("OnClick", OnJoin)
+    KHF.SetTooltip(r.join, function(self)
+        local e = KHF.Lobbies.Get(self:GetParent()._host)
+        if e and e.proto ~= KHF.Protocol.VERSION then return L["PL_OLD"] end
+        return L["PL_JOIN"]
+    end, nil)
+    r.old = r:CreateFontString(nil, "OVERLAY", "GameFontDisable")
+    r.old:SetPoint("RIGHT", r, "RIGHT", -12, 0)
+    r.old:SetText(L["PL_OLD"])
+    return r
+end
+
+local function DrawList()
+    local list = KHF.Lobbies.List()
+    for i = 1, math.max(#list, #rows) do
+        local e = list[i]
+        if e and i <= ROWS then
+            local r = rows[i] or NewRow(i)
+            rows[i] = r
+            r._host = e.host
+            r.title:SetText(KHF.EscapeText(e.title))
+            local joined
+            if e.players == 1 then joined = L["PL_JOINED_ONE"] else joined = string.format(L["PL_JOINED_N"], e.players or 0) end
+            r.info:SetText(string.format(L["PL_ROW"], ShortName(e.host), KHF.HostLobby.Info(e.count, e.read), joined))
+            local same = e.proto == KHF.Protocol.VERSION
+            r.join:SetShown(same)
+            r.old:SetShown(not same)
+            r:Show()
+        elseif rows[i] then
+            rows[i]._host = nil
+            rows[i]:Hide()
+        end
     end
-    return opts
-end
-
--- A new quiz chosen: Randomize starts as that quiz's own setting
-local function Choose(id)
-    sel = id
-    local quiz = id and QuizStore.Get(id)
-    Options().shuffle = quiz and quiz.shuffle == true or false
-    if shuffleCB then shuffleCB:SetChecked(opts.shuffle) end
-    if err then err:SetText("") end
+    if #list > 0 then
+        empty:Hide()
+    else
+        empty:SetText(KHF.Channels.ForAudience("group") and L["PL_NONE"] or L["PL_NOGROUP"])
+        empty:Show()
+    end
 end
 
 --------------------------------------------------------------------------------
--- CONTROLS
+-- YOUR LOBBY
 --------------------------------------------------------------------------------
-local function Label(text, y)
-    local fs = page:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("LEFT", page, "TOPLEFT", LABEL_X, y)
-    fs:SetText(text)
-    return fs
+local function DrawMine(s)
+    mTitle:SetText(KHF.EscapeText(s.title))
+    mInfo:SetText(string.format(L["PL_MINE_INFO"], ShortName(s.host), KHF.HostLobby.Info(s.count, s.read)))
+    local list = {}
+    for slot = 1, KHF.Protocol.MAX_SLOTS do
+        local p = s.list and s.list[slot]
+        if p then list[#list + 1] = { key = p.name, ready = p.ready } end
+    end
+    mGrid:SetRows(list)
+    mCount:SetText(string.format(L["HL_PLAYERS"], #list))
+    mCount:SetShown(#list > 0)
+    if s.state == "JOINING" then
+        mState:SetText(string.format(L["PL_JOINING"], ShortName(s.host)))
+    elseif s.check and s.check.answer == nil then
+        mState:SetText(string.format(L["PL_READY_Q"], ShortName(s.host)))
+    elseif s.check then
+        mState:SetText(s.check.answer and L["PL_SAID_READY"] or L["PL_SAID_NOT_READY"])
+    else
+        mState:SetText(string.format(L["PL_WAITING"], ShortName(s.host)))
+    end
+    local asking = s.state == "JOINED" and s.check ~= nil
+    readyBtn:SetShown(asking)
+    notReadyBtn:SetShown(asking)
 end
 
-local function Dropdown(y, width)
-    local dd = CreateFrame("DropdownButton", nil, page, "WowStyle1DropdownTemplate")
-    dd:SetWidth(width)
-    dd:SetPoint("LEFT", page, "TOPLEFT", CTRL_X, y)
-    return dd
-end
-
--- A check box whose label is part of the click area (BNB's checkbox rule)
-local function Check(text, y, tip, onClick)
-    local cb = CreateFrame("CheckButton", nil, page, "UICheckButtonTemplate")
-    cb:SetSize(26, 26)
-    cb:SetPoint("LEFT", page, "TOPLEFT", CTRL_X - 4, y)
-    local fs = page:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    fs:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-    fs:SetText(text)
-    cb:SetHitRectInsets(0, -(fs:GetStringWidth() + 4), 0, 0)
-    cb:SetScript("OnClick", function(self) onClick(self:GetChecked() and true or false) end)
-    KHF.SetTooltip(cb, text, tip)
-    return cb
-end
-
-local function BuildQuizDropdown(y)
-    Label(L["PT_QUIZ"], y)
-    quizDD = Dropdown(y, 320)
-    -- SetupMenu runs this at once (CLAUDE.md): the store is ready by then
-    quizDD:SetupMenu(function(_, root)
-        if root.SetScrollMode then root:SetScrollMode(20 * 20) end
-        for _, q in ipairs(QuizStore.List()) do
-            local id = q.id
-            local text = KHF.EscapeText(q.title)
-            if q.count == 1 then text = text .. "  |cff888888" .. L["QUIZ_COUNT_ONE"] .. "|r"
-            else text = text .. "  |cff888888" .. string.format(L["QUIZ_COUNT"], q.count) .. "|r" end
-            root:CreateRadio(text, function() return sel == id end, function() Choose(id) end)
-        end
-    end)
-end
-
-local function BuildOptions()
-    local y = ROW_Y0 - ROW_STEP
-    Label(L["PT_READ"], y)
-    readDD = Dropdown(y, 200)
-    readDD:SetupMenu(function(_, root)
-        for _, t in ipairs(READ_CHOICES) do
-            root:CreateRadio(ReadLabel(t), function() return Options().read == t end,
-                function() Options().read = t end)
-        end
-    end)
-
-    y = y - ROW_STEP
-    Label(L["PT_BOARD"], y)
-    boardDD = Dropdown(y, 200)
-    boardDD:SetupMenu(function(_, root)
-        for _, c in ipairs(BOARD_CHOICES) do
-            root:CreateRadio(L[c[2]], function() return Options().board == c[1] end,
-                function() Options().board = c[1] end)
-        end
-    end)
-
-    y = y - ROW_STEP
-    Label(L["PT_PICK"], y)
-    pickDD = Dropdown(y, 200)
-    pickDD:SetupMenu(function(_, root)
-        for _, c in ipairs(PICK_CHOICES) do
-            root:CreateRadio(L[c[2]], function() return Options().pick == c[1] end,
-                function() Options().pick = c[1] end)
-        end
-    end)
-    KHF.SetTooltip(pickDD, L["PT_PICK"], L["PT_PICK_TIP"])
-
-    y = y - ROW_STEP
-    shuffleCB = Check(L["ED_SHUFFLE"], y, L["PT_SHUFFLE_TIP"], function(on) Options().shuffle = on end)
-    y = y - 30
-    autoCB = Check(L["PT_AUTO"], y, L["PT_AUTO_TIP"], function(on) Options().auto = on end)
-    return y
-end
-
-local function StartPractice()
-    if not sel then return end
-    local o = KHF.DeepCopy(Options())
-    local ok, msg = KHF.Practice.Start(sel, o)
-    if not ok then
-        err:SetText(msg)
+local function Refresh()
+    if not page or not page:IsVisible() then return end
+    local s = Joined()
+    local live = s and (s.state == "JOINING" or s.state == "JOINED")
+    mine:SetShown(live and true or false)
+    for _, f in ipairs({ head, intro, lookBtn }) do f:SetShown(not live) end
+    if live then
+        for _, r in ipairs(rows) do r:Hide() end
+        empty:Hide()
+        status:SetText("")
+        DrawMine(s)
         return
     end
-    err:SetText("")
-    KHF.QuizUI.lastStart = { id = sel, opts = KHF.DeepCopy(o) }
-    KHF.HideMainWindow()   -- the quiz window takes the stage; /kahoof brings this back
-end
-
--- The list may have changed (a quiz deleted, renamed, added)
-local function Refresh()
-    if not page then return end
-    local found = false
-    local list = QuizStore.List()
-    for _, q in ipairs(list) do
-        if q.id == sel then found = true end
-    end
-    if not found then Choose(list[1] and list[1].id or nil) end
-    quizDD:GenerateMenu()
-    shuffleCB:SetChecked(Options().shuffle)
-    autoCB:SetChecked(Options().auto)
-    startBtn:SetEnabled(sel ~= nil)
+    DrawList()
 end
 
 --------------------------------------------------------------------------------
 -- THE PAGE (built by UI/MainWindow.lua on the window's first open)
 --------------------------------------------------------------------------------
+local function BuildMine(p)
+    mine = CreateFrame("Frame", nil, p)
+    mine:SetAllPoints()
+    mine:Hide()
+    mTitle = mine:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    mTitle:SetPoint("TOPLEFT", mine, "TOPLEFT", PAD, -12)
+    mTitle:SetPoint("RIGHT", mine, "RIGHT", -PAD, 0)
+    mTitle:SetJustifyH("LEFT")
+    mTitle:SetWordWrap(false)
+    mInfo = mine:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    mInfo:SetPoint("TOPLEFT", mTitle, "BOTTOMLEFT", 0, -6)
+    mInfo:SetPoint("RIGHT", mine, "RIGHT", -PAD, 0)
+    mInfo:SetJustifyH("LEFT")
+    mState = mine:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mState:SetPoint("TOPLEFT", mInfo, "BOTTOMLEFT", 0, -12)
+    mState:SetPoint("RIGHT", mine, "RIGHT", -PAD, 0)
+    mState:SetJustifyH("LEFT")
+    mCount = mine:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    mCount:SetPoint("TOPLEFT", mState, "BOTTOMLEFT", 0, -14)
+    mGrid = KHF.HostLobby.CreateGrid(mine)
+    mGrid:SetPoint("TOPLEFT", mCount, "BOTTOMLEFT", 0, -6)
+
+    readyBtn = KHF.CreateButton(mine, L["PL_READY"], 120, 26)
+    readyBtn:SetPoint("BOTTOMLEFT", mine, "BOTTOMLEFT", PAD, PAD)
+    readyBtn:SetScript("OnClick", function() KHF.Player.Ready(true) end)
+    notReadyBtn = KHF.CreateButton(mine, L["PL_NOT_READY"], 120, 26)
+    notReadyBtn:SetPoint("LEFT", readyBtn, "RIGHT", 10, 0)
+    notReadyBtn:SetScript("OnClick", function() KHF.Player.Ready(false) end)
+    leaveBtn = KHF.CreateButton(mine, L["PL_LEAVE"], 120, 26)
+    leaveBtn:SetPoint("BOTTOMRIGHT", mine, "BOTTOMRIGHT", -PAD, PAD)
+    leaveBtn:SetScript("OnClick", function()
+        KHF.Player.Leave()
+        Refresh()
+    end)
+    KHF.SetTooltip(leaveBtn, L["PL_LEAVE"], L["PL_LEAVE_TIP"])
+end
+
 local function Build(p)
     page = p
-    local head = p:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    head:SetPoint("TOPLEFT", p, "TOPLEFT", LABEL_X, -12)
-    head:SetText(L["PT_HEAD"])
-    local intro = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    head = p:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    head:SetPoint("TOPLEFT", p, "TOPLEFT", PAD, -12)
+    head:SetText(L["PL_HEAD"])
+    intro = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     intro:SetPoint("TOPLEFT", head, "BOTTOMLEFT", 0, -6)
-    intro:SetPoint("RIGHT", p, "RIGHT", -10, 0)
+    intro:SetPoint("RIGHT", p, "RIGHT", -140, 0)
     intro:SetJustifyH("LEFT")
-    intro:SetText(L["PT_INTRO"])
+    intro:SetText(L["PL_INTRO"])
+    lookBtn = KHF.CreateButton(p, L["PL_LOOK"], 120, 26)
+    lookBtn:SetPoint("TOPRIGHT", p, "TOPRIGHT", -PAD, -12)
+    lookBtn:SetScript("OnClick", function()
+        status:SetText("")
+        KHF.Lobbies.Ask()
+    end)
+    KHF.SetTooltip(lookBtn, L["PL_LOOK"], L["PL_LOOK_TIP"])
+    status = p:CreateFontString(nil, "OVERLAY", "GameFontRed")
+    status:SetPoint("TOPLEFT", intro, "BOTTOMLEFT", 0, -10)
+    status:SetPoint("RIGHT", p, "RIGHT", -PAD, 0)
+    status:SetJustifyH("LEFT")
+    status:SetText("")
+    empty = p:CreateFontString(nil, "OVERLAY", "GameFontDisableLarge")
+    empty:SetPoint("TOP", p, "TOP", 0, -140)
+    empty:SetPoint("LEFT", p, "LEFT", PAD, 0)
+    empty:SetPoint("RIGHT", p, "RIGHT", -PAD, 0)
+    BuildMine(p)
 
-    -- the quiz row sits under the intro, the options under it
-    BuildQuizDropdown(ROW_Y0)
-    local y = BuildOptions()
-
-    startBtn = KHF.CreateButton(p, L["PT_PRACTICE"], 140, 26)
-    startBtn:SetPoint("TOPLEFT", p, "TOPLEFT", CTRL_X, y - 40)
-    startBtn:SetScript("OnClick", StartPractice)
-    KHF.SetTooltip(startBtn, L["PT_PRACTICE"], L["PT_PRACTICE_TIP"])
-
-    err = p:CreateFontString(nil, "OVERLAY", "GameFontRed")
-    err:SetPoint("LEFT", startBtn, "RIGHT", 12, 0)
-    err:SetPoint("RIGHT", p, "RIGHT", -10, 0)
-    err:SetJustifyH("LEFT")
-
-    local later = p:CreateFontString(nil, "OVERLAY", "GameFontDisable")
-    later:SetPoint("TOPLEFT", startBtn, "BOTTOMLEFT", -(CTRL_X - LABEL_X), -24)
-    later:SetPoint("RIGHT", p, "RIGHT", -10, 0)
-    later:SetJustifyH("LEFT")
-    later:SetText(L["PT_HOST_LATER"])
-
-    -- Kahoof_Dev's controls (the bots, S6); nothing without it
-    if KHF.Dev and KHF.Dev.PlayTabRow then pcall(KHF.Dev.PlayTabRow, p, later) end
-
-    p:HookScript("OnShow", Refresh)
+    p:HookScript("OnShow", function()
+        KHF.Lobbies.Ask()
+        Refresh()
+    end)
     Refresh()
 end
 KHF.PageBuilders.TAB_PLAY = Build
 
-KHF.RegisterMessage("PlayTab", "QuizzesChanged", function()
-    if page and page:IsVisible() then Refresh() end
+KHF.RegisterMessage("PlayTab", "LobbiesChanged", Refresh)
+KHF.RegisterMessage("PlayTab", "RosterChanged", function(_, s)
+    if s.role == "player" then Refresh() end
+end)
+KHF.RegisterMessage("PlayTab", "ReadyCheck", Refresh)
+KHF.RegisterMessage("PlayTab", "SessionState", function(_, s, state)
+    if s.role ~= "player" then return end
+    -- a fresh join clears the last red line; an end writes its reason
+    if state == "JOINING" and status then status:SetText("") end
+    if state == "ENDED" and s.prestart and status then status:SetText(EndLine(s)) end
+    Refresh()
 end)
