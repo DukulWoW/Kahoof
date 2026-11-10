@@ -129,18 +129,8 @@ end
 --------------------------------------------------------------------------------
 -- THE COUNTDOWN
 --------------------------------------------------------------------------------
--- Paused (ALL-66): the clock stands still at the pause
-local function Remaining(s)
-    local now = (s.hold and s.hold.at) or S.Now()
-    if s.state == "STARTING" then return S.START_DELAY - (now - s.stateAt), S.START_DELAY end
-    local q = s.q
-    if not q then return nil end
-    if s.state == "READING" and q.read > 0 then return q.read - (now - s.stateAt), q.read end
-    if (s.state == "ANSWERING" or s.state == "ANSWERED") and s.openAt then
-        return q.limit - (now - s.openAt), q.limit
-    end
-    return nil
-end
+-- Session.Remaining (Core/Session.lua): also read by UI/Sounds.lua (ALL-80)
+local Remaining = S.Remaining
 
 function P:Tick()
     local s = KHF.Player.Get()

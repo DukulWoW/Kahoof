@@ -83,7 +83,7 @@ function QuizUI.CreateBigNumber(parent)
             SetDigit(self.digits[2], b, ha)
         end
         self.anim:Stop()
-        self.anim:Play()
+        if not KHF.GetSetting("reduceMotion") then self.anim:Play() end
     end
 
     return f
@@ -95,6 +95,7 @@ end
 -- clock runs; no shake above 10.
 --------------------------------------------------------------------------------
 function QuizUI.Shake(fs, x, y, left)
+    if KHF.GetSetting("reduceMotion") then left = 99 end   -- in place (ALL-23)
     local dx, dy = 0, 0
     if left <= 5 then
         dx, dy = math.random(-40, 40) / 10, math.random(-30, 30) / 10

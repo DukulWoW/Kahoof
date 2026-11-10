@@ -72,14 +72,22 @@ local function RegisterMinimapButton()
     if DBIcon and brokerObj and KHF.db then DBIcon:Register(BROKER_NAME, brokerObj, KHF.db.minimapIcon) end
 end
 
--- /kahoof minimap
-function KHF.ToggleMinimapButton()
+-- The Settings tab's switch (ALL-23); quiet
+function KHF.SetMinimapButton(show)
     local DBIcon = LibStub and LibStub("LibDBIcon-1.0", true)
     if not (DBIcon and KHF.db) then return end
     local icon = KHF.db.minimapIcon
-    icon.hide = not icon.hide
+    icon.hide = not show
     if icon.hide then DBIcon:Hide(BROKER_NAME) else DBIcon:Show(BROKER_NAME) end
-    KHF:Print(icon.hide and L["MINIMAP_HIDDEN"] or L["MINIMAP_SHOWN"])
+    KHF.SendMessage("SettingChanged", "minimapIcon")
+end
+
+-- /kahoof minimap
+function KHF.ToggleMinimapButton()
+    if not KHF.db then return end
+    local show = KHF.db.minimapIcon.hide and true or false
+    KHF.SetMinimapButton(show)
+    KHF:Print(show and L["MINIMAP_SHOWN"] or L["MINIMAP_HIDDEN"])
 end
 
 local function OnLogin()

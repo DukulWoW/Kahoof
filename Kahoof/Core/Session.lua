@@ -103,6 +103,24 @@ function Session.SetState(s, state, timer)
 end
 
 --------------------------------------------------------------------------------
+-- THE CLOCK AS SHOWN (moved from UI/QuizPlay.lua for UI/Sounds.lua, ALL-80)
+--------------------------------------------------------------------------------
+-- -> seconds left, total, for the player's clock: Get ready (STARTING), the
+-- read time (READING) or the answer time (ANSWERING / ANSWERED); nil in any
+-- other state. Paused (ALL-66): the clock stands still at the pause.
+function Session.Remaining(s)
+    local now = (s.hold and s.hold.at) or Session.Now()
+    if s.state == "STARTING" then return Session.START_DELAY - (now - s.stateAt), Session.START_DELAY end
+    local q = s.q
+    if not q then return nil end
+    if s.state == "READING" and q.read > 0 then return q.read - (now - s.stateAt), q.read end
+    if (s.state == "ANSWERING" or s.state == "ANSWERED") and s.openAt then
+        return q.limit - (now - s.openAt), q.limit
+    end
+    return nil
+end
+
+--------------------------------------------------------------------------------
 -- HOLDING (S10)
 --------------------------------------------------------------------------------
 function Session.Held(s, why)

@@ -131,7 +131,9 @@ local function LayoutHeader()
     local pad = KHF.Theme.PAD
     local tab1 = mw._tabs[1]
     tab1:SetPoint("TOPLEFT", mw, "TOPLEFT", pad, -TABS_TOP)
-    mw._tabs[#TABS]:SetPoint("TOPRIGHT", mw, "TOPRIGHT", -pad, -TABS_TOP)   -- Settings
+    -- Help on the far right (ALL-73), Settings left of it
+    mw._helpTab:SetPoint("TOPRIGHT", mw, "TOPRIGHT", -pad, -TABS_TOP)
+    mw._tabs[#TABS]:SetPoint("RIGHT", mw._helpTab, "LEFT", -4, 0)   -- Settings
     -- The pages start under the tabs, the full width of the window
     local area = mw._pageArea
     area:SetPoint("TOPLEFT", mw, "TOPLEFT", pad, -(TABS_TOP + tab1:GetHeight() - 2))
@@ -186,6 +188,18 @@ local function Build()
             fs:SetText(string.format(L["PAGE_PLACEHOLDER"], L[key]))
         end
     end
+
+    -- Help: a tab that is a button (Dukul, 2026-11-04: "add a help button to the
+    -- right of the settings tab"); it opens the help book, never a page
+    local help = CreateFrame("Button", "KahoofMainWindowHelpTab", mw, "PanelTopTabButtonTemplate")
+    help:SetText(L["TAB_HELP"])
+    pcall(PanelTemplates_TabResize, help, 15, nil, 50)
+    pcall(PanelTemplates_DeselectTab, help)
+    help:SetScript("OnClick", function(self)
+        pcall(PanelTemplates_DeselectTab, self)
+        KHF.HelpBook.Toggle()
+    end)
+    mw._helpTab = help
 
     LayoutHeader()
     BuildLock()

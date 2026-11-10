@@ -19,6 +19,7 @@ local QuizStore = KHF.QuizStore
 
 local LABEL_X, CTRL_X = 10, 200
 local ROW_Y0, ROW_STEP = -80, 36
+local DD_W = 320   -- every dropdown one width (ALL-77)
 
 local page, setup, lobbyPage, quizDD, readDD, boardDD, pickDD, shuffleCB, autoCB, playCB, startBtn, openBtn, err
 local sel      -- the chosen quiz id
@@ -84,7 +85,7 @@ end
 
 local function BuildQuizDropdown(y)
     Label(L["PT_QUIZ"], y)
-    quizDD = Dropdown(y, 320)
+    quizDD = Dropdown(y, DD_W)
     -- SetupMenu runs this at once (CLAUDE.md): the store is ready by then
     quizDD:SetupMenu(function(_, root)
         if root.SetScrollMode then root:SetScrollMode(20 * 20) end
@@ -101,7 +102,7 @@ end
 local function BuildOptions()
     local y = ROW_Y0 - ROW_STEP
     Label(L["PT_READ"], y)
-    readDD = Dropdown(y, 200)
+    readDD = Dropdown(y, DD_W)
     readDD:SetupMenu(function(_, root)
         for _, t in ipairs(READ_CHOICES) do
             root:CreateRadio(ReadLabel(t), function() return Options().read == t end,
@@ -111,7 +112,7 @@ local function BuildOptions()
 
     y = y - ROW_STEP
     Label(L["PT_BOARD"], y)
-    boardDD = Dropdown(y, 200)
+    boardDD = Dropdown(y, DD_W)
     boardDD:SetupMenu(function(_, root)
         for _, c in ipairs(BOARD_CHOICES) do
             root:CreateRadio(L[c[2]], function() return Options().board == c[1] end,
@@ -121,7 +122,7 @@ local function BuildOptions()
 
     y = y - ROW_STEP
     Label(L["PT_PICK"], y)
-    pickDD = Dropdown(y, 200)
+    pickDD = Dropdown(y, DD_W)
     pickDD:SetupMenu(function(_, root)
         for _, c in ipairs(PICK_CHOICES) do
             root:CreateRadio(L[c[2]], function() return Options().pick == c[1] end,

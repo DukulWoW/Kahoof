@@ -12,6 +12,7 @@ end
 local function PrintHelp()
     KHF:Print(L["SLASH_HELP_TITLE"])
     print(L["SLASH_HELP_TOGGLE"])
+    print(L["SLASH_HELP_GUIDE"])
     print(L["SLASH_HELP_RESET"])
     print(L["SLASH_HELP_MINIMAP"])
     print(L["SLASH_HELP_LOCK"])
@@ -76,6 +77,7 @@ local COMMANDS = {
         KHF:Print(L["RESET_DONE"])
     end,
     minimap = function() KHF.ToggleMinimapButton() end,
+    guide = function() KHF.HelpBook.Open() end,   -- the help book (ALL-73)
     lock = function()
         KHF.SetMainLocked(true)
         KHF:Print(L["LOCK_DONE"])

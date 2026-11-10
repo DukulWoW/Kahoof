@@ -10,10 +10,9 @@
 -- Never in combat: one that comes in a fight waits until it ends, and shows
 -- then if it still stands (the lobby still open, the check still running).
 -- No invite while you host, play or wait in a lobby. Setting toastGroup
--- turns invites off (the switch comes with the Settings tab, ALL-23).
--- Each plays its sound when it shows (KHF.PlaySound): invite.ogg, and
--- ready-check.ogg (for now a copy of invite.ogg, Dukul replaces it when he
--- finds one; 2026-11-09). The sound switches come with ALL-20.
+-- turns invites off (its switch is on the Settings tab, ALL-23).
+-- Each plays its sound when it shows (KHF.PlaySound, UI/Sounds.lua): the
+-- invite and ready check moments, picked on the Settings tab (ALL-20).
 
 local _, KHF = ...
 local L = KHF.L
@@ -97,7 +96,7 @@ local function Show(t)
     end
     win:Show()
     win:Raise()
-    KHF.PlaySound(t.kind == "invite" and "invite" or "ready-check")
+    KHF.PlaySound(t.kind == "invite" and "invite" or "readyCheck")
     if hideTimer then hideTimer:Cancel() end
     hideTimer = C_Timer.NewTimer(math.max(1, SHOW_TIME - (GetTime() - t.at)), Hide)
 end

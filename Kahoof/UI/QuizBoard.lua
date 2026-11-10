@@ -90,9 +90,18 @@ local function RowName(s, slot)
     return name
 end
 
-local function Fill(r, rank, name, cols, ncols, mine, odd)
-    local st = (rank and STYLE[rank]) or PLAIN
-    r._rank = rank
+-- The rank a row is styled by: no medal look with 0 points (ALL-78: a quiz
+-- where nobody scored tied everyone at rank 1, and everyone got gold). The
+-- rank number itself stays the shared one.
+local function MedalRank(rank, total)
+    if total and total <= 0 then return nil end
+    return rank
+end
+
+local function Fill(r, rank, name, cols, ncols, mine, odd, total)
+    local look = MedalRank(rank, total)
+    local st = (look and STYLE[look]) or PLAIN
+    r._rank = look or ((rank and rank <= 3) and 4) or rank
     r:SetHeight((plainH and not st.icon) and plainH or st.h)
     -- the top three: their icon instead of the number, name and points in their color
     if st.icon then
@@ -207,7 +216,7 @@ function B:LayoutBoard(s, dt)
     local b, a = s.board, self.anim
     local e = 1
     if a and not a.done then
-        local t = (GetTime() - a.t0) / ANIM_TIME
+        local t = KHF.GetSetting("reduceMotion") and 1 or (GetTime() - a.t0) / ANIM_TIME
         e = (t >= 1) and 1 or Ease(math.max(0, t))
     end
     local full = KHF.GetSetting("boardFull") and true or false
@@ -240,7 +249,8 @@ function B:LayoutBoard(s, dt)
     for i, slot in ipairs(order) do
         local r = self:SlotRow(slot)
         local rk = ranks[slot]
-        if prevRank and prevRank <= 3 and rk > 3 then
+        local lk = MedalRank(rk, rows[slot] and rows[slot].total) or math.max(rk, 4)
+        if prevRank and prevRank <= 3 and lk > 3 then
             self.divider:SetHeight(TIGHT.div)
             self.divider:ClearAllPoints()
             self.divider:SetPoint("LEFT", self.child, "TOPLEFT", 20, y - TIGHT.div / 2)
@@ -253,7 +263,7 @@ function B:LayoutBoard(s, dt)
         if r._key ~= key then
             r._key = key
             Fill(r, rk, RowName(s, slot), { nil, nil, Gain(rows[slot]), tostring(shown[slot]) },
-                 2, slot == s.slot, i % 2 == 1)
+                 2, slot == s.slot, i % 2 == 1, rows[slot] and rows[slot].total)
         end
         r:Show()
         if not dt or not r._y then
@@ -266,7 +276,7 @@ function B:LayoutBoard(s, dt)
         r:SetPoint("TOPLEFT", self.child, "TOPLEFT", 0, r._y)
         r:SetPoint("RIGHT", self.child, "RIGHT")
         y = y - r:GetHeight() - TIGHT.gap
-        prevRank = rk
+        prevRank = lk
         if i == BOARD_TOP then cut = -y end
         if slot == s.slot and i <= BOARD_TOP then mineIn = true end
     end
@@ -288,7 +298,7 @@ function B:LayoutBoard(s, dt)
     -- your own line when the top ten leaves you out
     if self.mineSpace and not mineIn and b.mine then
         Fill(self.mineRow, ranks[s.slot], RowName(s, s.slot),
-             { nil, nil, Gain(b.mine), tostring(shown[s.slot] or b.mine.total) }, 2, true)
+             { nil, nil, Gain(b.mine), tostring(shown[s.slot] or b.mine.total) }, 2, true, nil, b.mine.total)
     else
         self.mineRow:Hide()
     end
@@ -397,7 +407,7 @@ function B:DrawFinal(s)
             string.format(L["QW_OF"], r.correct, r.played),
             Accuracy(r),
             AvgTime(r),
-        }, 4, slot == s.slot, i % 2 == 1)
+        }, 4, slot == s.slot, i % 2 == 1, r.total)
     end
     self:EndRows(#f.order)
 

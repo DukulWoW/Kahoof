@@ -36,12 +36,17 @@ Core\Player.lua
 Core\Lobbies.lua
 Core\Practice.lua
 Core\VersionCheck.lua
+Core\SoundCues.lua
 
 # Data
 Data\StarterQuiz.lua
+Data\HelpData.lua
+Data\FeatureListData.lua
+Data\PatchNotesData.lua
 
 # UI
 UI\Widgets.lua
+UI\Sounds.lua
 UI\Theme.lua
 UI\ThemeControls.lua
 UI\MainWindow.lua
@@ -56,5 +61,7 @@ UI\HostTab.lua
 UI\HostLobby.lua
 UI\PlayTab.lua
 UI\Toast.lua
+UI\SettingsTab.lua
+UI\HelpBook.lua
 UI\OptionsPanel.lua
 UI\Launchers.lua

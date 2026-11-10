@@ -25,6 +25,7 @@ KHF.DEFAULTS = {
         main = {},
         quiz = {},         -- the quiz window (S5b)
         quizButton = {},   -- the "Quiz running" button (S5b); empty = top center
+        help = {},         -- the help book (ALL-73)
     },
     mainLocked = false,   -- the main window's size locked (the lock button, ALL-39)
     mainTabKey = "TAB_PLAY",   -- the main window's last tab, by key (S9: mainTab, an index, is no longer read)
@@ -36,6 +37,11 @@ KHF.DEFAULTS = {
     toastGroup = true,    -- the invite toast when a lobby opens in your group (S9; its switch: ALL-23)
     boardFull = false,    -- the leaderboard: false = top ten + your line, true = everyone
     minimapIcon = { hide = false, minimapPos = 200 },   -- LibDBIcon's own table (shown by default)
+    -- Sounds (ALL-20 / 79): on, the game channel they play on (their volume),
+    -- pick[moment] = a LibSharedMedia sound name; no entry = the moment's
+    -- default (UI/Sounds.lua, MOMENTS)
+    sounds = { on = true, channel = "Master", pick = {} },
+    reduceMotion = false, -- no shake, no number pop, no count-up on the leaderboard (ALL-23)
 }
 
 local QUIZZES_DEFAULTS = {

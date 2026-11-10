@@ -319,14 +319,14 @@ end
 function QuizUI.AnswerKey(n)
     local ps = PS()
     local ok = (play and ps and play:Pick(ps, n)) or false
-    if ok then KHF.PlaySound("answer-click") end
+    if ok then KHF.PlaySound("answer") end
     return ok
 end
 
 function QuizUI.SendKey()
     local ps = PS()
     local ok = (play and ps and play:Send(ps)) or false
-    if ok then KHF.PlaySound("answer-click") end
+    if ok then KHF.PlaySound("answer") end
     return ok
 end
 
