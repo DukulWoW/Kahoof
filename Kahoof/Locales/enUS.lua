@@ -403,6 +403,10 @@ L["SET_MOTION"]          = "Reduce motion"
 L["SET_MOTION_TIP"]      = "No shaking clock, no popping numbers and no counting leaderboard."
 L["SET_SCALE"]           = "Quiz window size"
 L["SET_SOUNDS"]          = "Sounds"
+L["SET_SOUNDS_DESC"]     = "A sound for each moment of a quiz, the music while the answers are open, and the sound channel."
+L["SET_MORE"]            = "More settings"
+L["SET_SUBPAGE_OPEN"]    = "Settings"
+L["SET_SUBPAGE_BACK"]    = "Back"
 
 -- Sounds (UI/Sounds.lua, the Settings tab; ALL-20, ALL-79, ALL-80, ALL-81)
 L["SND_ON"]              = "Play sounds"

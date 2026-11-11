@@ -40,6 +40,10 @@ KHF.PageBuilders = {}
 -- windows-widgets.md: "Esc goes back first"). Out of combat only: in combat
 -- the game's UISpecialFrames closes the window, the page stays as it was.
 KHF.PageEscHandlers = {}
+-- A tab selected (its own button included) calls KHF.PageTabHandlers[key]()
+-- first: a page with sub-pages goes back to its top (UI/SettingsTab.lua, BNB's
+-- sub-pages: "any tab select returns to the tab").
+KHF.PageTabHandlers = {}
 
 -- logo.tga is 256 x 128, its art on rows 23-107 (horn tips to letter feet).
 -- Drawn at 144 x 72 (Dukul's screenshot), its top 42 above the window: the
@@ -75,6 +79,8 @@ end
 
 local function SelectTab(idx)
     if not mw then return end
+    local h = KHF.PageTabHandlers[TABS[idx]]
+    if h then h() end
     for i, tab in ipairs(mw._tabs) do
         if i == idx then PanelTemplates_SelectTab(tab) else PanelTemplates_DeselectTab(tab) end
         mw._pages[i]:SetShown(i == idx)
@@ -205,6 +211,15 @@ local function Build()
     BuildLock()
     ApplyLock()
     SelectTab(TabIndex(KHF.GetSetting("mainTabKey")) or 1)
+end
+
+-- The tab button for a tab key, or nil before the window is built. The game
+-- disables a selected tab; a sub-page enables it so a click on it goes back.
+function KHF.MainTabButton(key)
+    if not mw then return nil end
+    for i, k in ipairs(TABS) do
+        if k == key then return mw._tabs[i] end
+    end
 end
 
 -- tab, optional: a tab key ("TAB_SETTINGS") to show it on
